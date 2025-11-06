@@ -1,0 +1,1223 @@
+import React, { useState, useEffect } from 'react';
+import wardService from '../../lib/api/services/wardService';
+
+const WardManagement = ({ onBack, isAuthenticated }) => {
+  const [wards, setWards] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editingWard, setEditingWard] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  
+  // Form states
+  const [formData, setFormData] = useState({
+    name: '',
+    type: 'GENERAL',
+    capacity: '',
+    description: '',
+    floor: ''
+  });
+
+  const wardTypes = [
+    { value: 'GENERAL', label: 'General Ward', icon: '🏥' },
+    { value: 'ICU', label: 'Intensive Care Unit', icon: '🚨' },
+    { value: 'PRIVATE', label: 'Private Ward', icon: '🏠' },
+    { value: 'EMERGENCY', label: 'Emergency Ward', icon: '🚑' },
+    { value: 'PEDIATRIC', label: 'Pediatric Ward', icon: '🧒' },
+    { value: 'MATERNITY', label: 'Maternity Ward', icon: '🤱' },
+    { value: 'SURGICAL', label: 'Surgical Ward', icon: '⚕️' },
+    { value: 'CARDIAC', label: 'Cardiac Ward', icon: '❤️' },
+    { value: 'NEUROLOGY', label: 'Neurology Ward', icon: '🧠' },
+    { value: 'ORTHOPEDIC', label: 'Orthopedic Ward', icon: '🦴' }
+  ];
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadWards();
+    } else {
+      setError('Please login to access ward management');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, searchTerm, filterType, filterStatus]);
+
+  const loadWards = async () => {
+    setLoading(true);
+    try {
+      const params = {
+        page: 1,
+        limit: 100,
+        ...(searchTerm && { search: searchTerm }),
+        ...(filterType && { type: filterType }),
+        ...(filterStatus && { isActive: filterStatus === 'active' })
+      };
+      
+      console.log('🏥 Loading wards with params:', params);
+      const response = await wardService.getWards(params);
+      console.log('🏥 Ward service response:', response);
+      
+      // Handle different response structures
+      let wardsList = [];
+      if (response && response.wards) {
+        wardsList = Array.isArray(response.wards) ? response.wards : [];
+      } else if (response && response.data && response.data.wards) {
+        wardsList = Array.isArray(response.data.wards) ? response.data.wards : [];
+      } else if (Array.isArray(response)) {
+        wardsList = response;
+      }
+      
+      console.log(`✅ Loaded ${wardsList.length} wards from backend`);
+      console.log(`📋 Wards loaded:`, wardsList.map(w => ({ id: w.id, name: w.name })));
+      
+      // Force state update by creating a new array reference
+      setWards([...wardsList]);
+      setError('');
+    } catch (err) {
+      if (err.response?.status === 401) {
+        setError('Authentication required. Please login first.');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+      } else {
+        const errorMsg = err.response?.data?.message || err.message || 'Failed to load wards';
+        setError(`❌ ${errorMsg}`);
+      }
+      console.error('❌ Error loading wards:', err);
+      console.error('❌ Error response:', err.response?.data);
+      setWards([]); // Set empty array on error
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    e.stopPropagation(); // Prevent event bubbling that might interfere
+    const { name, value } = e.target;
+    console.log(`📝 Input changed: ${name} = "${value}"`); // Debug log
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    // Validate required fields
+    if (!formData.name || formData.name.trim() === '') {
+      setError('❌ Please enter a ward name');
+      setLoading(false);
+      return;
+    }
+    if (!formData.capacity || parseInt(formData.capacity) <= 0) {
+      setError('❌ Please enter a valid capacity (greater than 0)');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      console.log('📝 Submitting ward data:', {
+        name: formData.name,
+        type: formData.type,
+        capacity: formData.capacity
+      });
+
+      const wardData = {
+        name: formData.name.trim(),
+        type: formData.type,
+        capacity: parseInt(formData.capacity),
+        description: formData.description?.trim() || undefined,
+        floor: formData.floor?.trim() || undefined
+      };
+
+      if (showEditForm && editingWard) {
+        await wardService.updateWard(editingWard.id, wardData);
+        setShowEditForm(false);
+        setEditingWard(null);
+        setError('✅ Ward updated successfully!');
+      } else {
+        await wardService.createWard(wardData);
+        setShowAddForm(false);
+        setError('✅ Ward created successfully!');
+      }
+
+      await loadWards();
+
+      // Reset form
+      setFormData({
+        name: '',
+        type: 'GENERAL',
+        capacity: '',
+        description: '',
+        floor: ''
+      });
+
+    } catch (err) {
+      console.error('❌ Error saving ward:', err);
+      console.error('❌ Error response:', err.response?.data);
+      console.error('❌ Error details:', {
+        status: err.response?.status,
+        message: err.response?.data?.message,
+        errors: err.response?.data?.errors
+      });
+      
+      if (err.response?.status === 401) {
+        setError('Authentication required. Please login first.');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+      } else if (err.response?.data?.message) {
+        let errorMsg = err.response.data.message;
+        
+        // Add validation errors if present
+        if (err.response.data.errors && Array.isArray(err.response.data.errors)) {
+          const validationErrors = err.response.data.errors
+            .map(e => `${e.path?.join('.') || 'Field'}: ${e.message}`)
+            .join(', ');
+          if (validationErrors) {
+            errorMsg += ` (${validationErrors})`;
+          }
+        }
+        
+        setError(`❌ ${errorMsg}`);
+      } else if (err.message) {
+        setError(`❌ ${err.message}`);
+      } else {
+        setError('❌ Failed to save ward. Please check the console for details.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = (ward) => {
+    setEditingWard(ward);
+    setFormData({
+      name: ward.name || '',
+      type: ward.type || 'GENERAL',
+      capacity: ward.capacity?.toString() || '',
+      description: ward.description || '',
+      floor: ward.floor || ''
+    });
+    setShowEditForm(true);
+    setShowAddForm(false);
+  };
+
+  const handleDelete = async (wardId, force = false) => {
+    const ward = wards.find(w => w.id === wardId);
+    const wardName = ward?.name || 'this ward';
+    
+    let confirmMessage = `Are you sure you want to delete "${wardName}"? This action cannot be undone.`;
+    if (force) {
+      confirmMessage += '\n\n⚠️ Force delete will remove all beds and related records.';
+    }
+
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    
+    try {
+      console.log(`🗑️ Deleting ward ${wardId}${force ? ' (force)' : ''}`);
+      console.log(`📋 Current wards before deletion:`, wards.map(w => ({ id: w.id, name: w.name })));
+      
+      const params = force ? { force: 'true' } : {};
+      const response = await wardService.deleteWard(wardId, params);
+      
+      console.log('✅ Ward deletion response:', response);
+      
+      // Immediately remove the ward from state for instant UI update
+      setWards(prevWards => {
+        const updatedWards = prevWards.filter(w => w.id !== wardId);
+        console.log(`🗑️ Removed ward from state. Previous count: ${prevWards.length}, New count: ${updatedWards.length}`);
+        return updatedWards;
+      });
+      
+      // Set success message
+      setError('✅ Ward deleted successfully!');
+      
+      // Reload from backend to ensure consistency
+      await loadWards();
+      
+      // Double-check after a short delay to ensure deletion is reflected
+      setTimeout(async () => {
+        try {
+          const refreshedWards = await wardService.getWards({ page: 1, limit: 100 });
+          const wardsList = refreshedWards?.wards || [];
+          console.log(`🔄 Final ward count after refresh: ${wardsList.length}`);
+          console.log(`📋 Wards after refresh:`, wardsList.map(w => ({ id: w.id, name: w.name })));
+          
+          // Verify the deleted ward is not in the list BEFORE updating state
+          const stillExists = wardsList.some(w => w.id === wardId);
+          
+          if (stillExists) {
+            console.error(`❌ ERROR: Ward ${wardId} still exists in backend response!`);
+            // Don't update state if ward still exists - keep the manually removed state
+            setError(`❌ Error: Ward deletion failed. The ward still exists in the database.`);
+          } else {
+            console.log(`✅ Verified: Ward ${wardId} successfully removed from backend`);
+            // Update state with fresh data (force new array reference)
+            setWards([...wardsList]);
+            
+            // Clear success message after showing it
+            setTimeout(() => {
+              setError(prevError => {
+                // Only clear if it's still the success message
+                if (prevError.includes('✅ Ward deleted successfully')) {
+                  return '';
+                }
+                return prevError;
+              });
+            }, 3000);
+          }
+        } catch (refreshError) {
+          console.error('❌ Error refreshing wards:', refreshError);
+          setError(`❌ Error refreshing ward list. Please refresh the page.`);
+        }
+      }, 1000);
+      
+    } catch (err) {
+      console.error('❌ Error deleting ward:', err);
+      console.error('❌ Error response:', err.response?.data);
+      
+      if (err.response?.status === 401) {
+        setError('Authentication required. Please login first.');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+      } else if (err.response?.data?.canForceDelete) {
+        // Show detailed error with force delete option
+        const errorData = err.response.data.data || {};
+        const issues = [];
+        if (errorData.activeAdmissions > 0) {
+          issues.push(`${errorData.activeAdmissions} active admission(s)`);
+        }
+        if (errorData.occupiedBeds > 0) {
+          issues.push(`${errorData.occupiedBeds} occupied bed(s)`);
+        }
+        
+        const detailedMessage = `Cannot delete ward: ${issues.join(' and ')} exist.`;
+        const confirmForce = window.confirm(
+          `${detailedMessage}\n\nDo you want to force delete? This will remove all beds and related records.`
+        );
+        
+        if (confirmForce) {
+          // Retry with force delete
+          await handleDelete(wardId, true);
+        } else {
+          setError(`❌ ${err.response.data.message}`);
+        }
+      } else if (err.response?.data?.message) {
+        setError(`❌ ${err.response.data.message}`);
+      } else {
+        setError('❌ Failed to delete ward. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleStatus = async (wardId) => {
+    setLoading(true);
+    try {
+      const ward = wards.find(w => w.id === wardId);
+      if (ward) {
+        await wardService.updateWard(wardId, { isActive: !ward.isActive });
+        await loadWards();
+        setError('✅ Ward status updated successfully!');
+      }
+    } catch (err) {
+      if (err.response?.status === 401) {
+        setError('Authentication required. Please login first.');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+      } else {
+        setError('❌ Failed to update ward status. Please try again.');
+      }
+      console.error('Error updating ward status:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getWardTypeInfo = (type) => {
+    return wardTypes.find(t => t.value === type) || { value: type, label: type, icon: '🏥' };
+  };
+
+  const filteredWards = wards.filter(ward => {
+    const matchesSearch = ward.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (ward.description && ward.description.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesType = !filterType || ward.type === filterType;
+    const matchesStatus = filterStatus === '' || 
+                         (filterStatus === 'active' && ward.isActive) ||
+                         (filterStatus === 'inactive' && !ward.isActive);
+    
+    return matchesSearch && matchesType && matchesStatus;
+  });
+
+  const stats = {
+    totalWards: wards.length,
+    activeWards: wards.filter(w => w.isActive).length,
+    inactiveWards: wards.filter(w => !w.isActive).length,
+    totalCapacity: wards.reduce((sum, ward) => sum + (ward.capacity || 0), 0),
+    totalOccupancy: wards.reduce((sum, ward) => sum + (ward.currentOccupancy || 0), 0),
+    availableBeds: wards.reduce((sum, ward) => sum + ((ward.capacity || 0) - (ward.currentOccupancy || 0)), 0)
+  };
+
+  return React.createElement(
+    'div',
+    { style: { minHeight: '100vh', backgroundColor: '#f8f9fa' } },
+    
+    // Header
+    React.createElement(
+      'div',
+      {
+        style: {
+          backgroundColor: 'white',
+          padding: '20px',
+          borderBottom: '1px solid #dee2e6',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }
+      },
+      React.createElement(
+        'div',
+        { style: { display: 'flex', alignItems: 'center' } },
+        React.createElement(
+          'button',
+          {
+            onClick: onBack,
+            style: {
+              backgroundColor: '#6c757d',
+              color: 'white',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              marginRight: '15px'
+            }
+          },
+          '← Back to Dashboard'
+        ),
+        React.createElement(
+          'span',
+          { style: { fontSize: '24px', fontWeight: 'bold', color: '#333' } },
+          '🏥 Ward Management'
+        )
+      ),
+      React.createElement(
+        'button',
+        {
+          onClick: () => setShowAddForm(true),
+          style: {
+            backgroundColor: '#007bff',
+            color: 'white',
+            border: 'none',
+            padding: '10px 20px',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontWeight: 'bold'
+          }
+        },
+        '➕ Add New Ward'
+      )
+    ),
+
+    // Content
+    React.createElement(
+      'div',
+      { style: { padding: '20px' } },
+
+      // Statistics Cards
+      React.createElement(
+        'div',
+        {
+          style: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '20px',
+            marginBottom: '30px'
+          }
+        },
+        React.createElement(
+          'div',
+          {
+            style: {
+              backgroundColor: 'white',
+              padding: '20px',
+              borderRadius: '8px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textAlign: 'center'
+            }
+          },
+          React.createElement(
+            'div',
+            { style: { fontSize: '24px', marginBottom: '8px' } },
+            '🏥'
+          ),
+          React.createElement(
+            'div',
+            { style: { fontSize: '28px', fontWeight: 'bold', color: '#007bff' } },
+            stats.totalWards
+          ),
+          React.createElement(
+            'div',
+            { style: { color: '#666', fontSize: '14px' } },
+            'Total Wards'
+          )
+        ),
+        React.createElement(
+          'div',
+          {
+            style: {
+              backgroundColor: 'white',
+              padding: '20px',
+              borderRadius: '8px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textAlign: 'center'
+            }
+          },
+          React.createElement(
+            'div',
+            { style: { fontSize: '24px', marginBottom: '8px' } },
+            '✅'
+          ),
+          React.createElement(
+            'div',
+            { style: { fontSize: '28px', fontWeight: 'bold', color: '#28a745' } },
+            stats.activeWards
+          ),
+          React.createElement(
+            'div',
+            { style: { color: '#666', fontSize: '14px' } },
+            'Active Wards'
+          )
+        ),
+        React.createElement(
+          'div',
+          {
+            style: {
+              backgroundColor: 'white',
+              padding: '20px',
+              borderRadius: '8px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textAlign: 'center'
+            }
+          },
+          React.createElement(
+            'div',
+            { style: { fontSize: '24px', marginBottom: '8px' } },
+            '🛏️'
+          ),
+          React.createElement(
+            'div',
+            { style: { fontSize: '28px', fontWeight: 'bold', color: '#17a2b8' } },
+            stats.totalCapacity
+          ),
+          React.createElement(
+            'div',
+            { style: { color: '#666', fontSize: '14px' } },
+            'Total Capacity'
+          )
+        ),
+        React.createElement(
+          'div',
+          {
+            style: {
+              backgroundColor: 'white',
+              padding: '20px',
+              borderRadius: '8px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textAlign: 'center'
+            }
+          },
+          React.createElement(
+            'div',
+            { style: { fontSize: '24px', marginBottom: '8px' } },
+            '👥'
+          ),
+          React.createElement(
+            'div',
+            { style: { fontSize: '28px', fontWeight: 'bold', color: '#ffc107' } },
+            stats.totalOccupancy
+          ),
+          React.createElement(
+            'div',
+            { style: { color: '#666', fontSize: '14px' } },
+            'Current Occupancy'
+          )
+        ),
+        React.createElement(
+          'div',
+          {
+            style: {
+              backgroundColor: 'white',
+              padding: '20px',
+              borderRadius: '8px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textAlign: 'center'
+            }
+          },
+          React.createElement(
+            'div',
+            { style: { fontSize: '24px', marginBottom: '8px' } },
+            '🆓'
+          ),
+          React.createElement(
+            'div',
+            { style: { fontSize: '28px', fontWeight: 'bold', color: '#28a745' } },
+            stats.availableBeds
+          ),
+          React.createElement(
+            'div',
+            { style: { color: '#666', fontSize: '14px' } },
+            'Available Beds'
+          )
+        )
+      ),
+
+      // Search and Filters
+      React.createElement(
+        'div',
+        {
+          style: {
+            backgroundColor: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            marginBottom: '20px'
+          }
+        },
+        React.createElement(
+          'div',
+          {
+            style: {
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '15px',
+              alignItems: 'end'
+            }
+          },
+          React.createElement(
+            'div',
+            null,
+            React.createElement(
+              'label',
+              { style: { display: 'block', marginBottom: '5px', fontWeight: 'bold' } },
+              'Search Wards'
+            ),
+            React.createElement('input', {
+              type: 'text',
+              placeholder: 'Search by name or description...',
+              value: searchTerm,
+              onChange: (e) => setSearchTerm(e.target.value),
+              style: {
+                width: '100%',
+                padding: '8px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                fontSize: '14px'
+              }
+            })
+          ),
+          React.createElement(
+            'div',
+            null,
+            React.createElement(
+              'label',
+              { style: { display: 'block', marginBottom: '5px', fontWeight: 'bold' } },
+              'Filter by Type'
+            ),
+            React.createElement(
+              'select',
+              {
+                value: filterType,
+                onChange: (e) => setFilterType(e.target.value),
+                style: {
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '14px'
+                }
+              },
+              React.createElement('option', { value: '' }, 'All Types'),
+              ...wardTypes.map(type => React.createElement(
+                'option',
+                { key: type.value, value: type.value },
+                `${type.icon} ${type.label}`
+              ))
+            )
+          ),
+          React.createElement(
+            'div',
+            null,
+            React.createElement(
+              'label',
+              { style: { display: 'block', marginBottom: '5px', fontWeight: 'bold' } },
+              'Filter by Status'
+            ),
+            React.createElement(
+              'select',
+              {
+                value: filterStatus,
+                onChange: (e) => setFilterStatus(e.target.value),
+                style: {
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '14px'
+                }
+              },
+              React.createElement('option', { value: '' }, 'All Status'),
+              React.createElement('option', { value: 'active' }, 'Active'),
+              React.createElement('option', { value: 'inactive' }, 'Inactive')
+            )
+          )
+        )
+      ),
+
+      // Error/Success Message
+      error && React.createElement(
+        'div',
+        {
+          style: {
+            backgroundColor: error.includes('✅') ? '#d4edda' : '#f8d7da',
+            color: error.includes('✅') ? '#155724' : '#721c24',
+            padding: '12px',
+            borderRadius: '4px',
+            marginBottom: '20px',
+            border: `1px solid ${error.includes('✅') ? '#c3e6cb' : '#f5c6cb'}`
+          }
+        },
+        error
+      ),
+
+      // Wards Table
+      React.createElement(
+        'div',
+        {
+          style: {
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            overflow: 'hidden'
+          }
+        },
+        React.createElement(
+          'div',
+          {
+            style: {
+              padding: '20px',
+              borderBottom: '1px solid #dee2e6',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }
+          },
+          React.createElement(
+            'h3',
+            { style: { margin: '0', color: '#333' } },
+            `Wards (${filteredWards.length})`
+          ),
+          loading && React.createElement(
+            'div',
+            { style: { color: '#007bff' } },
+            'Loading...'
+          )
+        ),
+        React.createElement(
+          'div',
+          { style: { overflowX: 'auto' } },
+          React.createElement(
+            'table',
+            {
+              style: {
+                width: '100%',
+                borderCollapse: 'collapse'
+              }
+            },
+            React.createElement(
+              'thead',
+              {
+                style: {
+                  backgroundColor: '#f8f9fa',
+                  borderBottom: '2px solid #dee2e6'
+                }
+              },
+              React.createElement(
+                'tr',
+                null,
+                React.createElement('th', { style: { padding: '12px', textAlign: 'left', fontWeight: 'bold' } }, 'Ward'),
+                React.createElement('th', { style: { padding: '12px', textAlign: 'left', fontWeight: 'bold' } }, 'Type'),
+                React.createElement('th', { style: { padding: '12px', textAlign: 'left', fontWeight: 'bold' } }, 'Capacity'),
+                React.createElement('th', { style: { padding: '12px', textAlign: 'left', fontWeight: 'bold' } }, 'Occupancy'),
+                React.createElement('th', { style: { padding: '12px', textAlign: 'left', fontWeight: 'bold' } }, 'Floor'),
+                React.createElement('th', { style: { padding: '12px', textAlign: 'left', fontWeight: 'bold' } }, 'Status'),
+                React.createElement('th', { style: { padding: '12px', textAlign: 'center', fontWeight: 'bold' } }, 'Actions')
+              )
+            ),
+            React.createElement(
+              'tbody',
+              null,
+              filteredWards.length === 0 ? React.createElement(
+                'tr',
+                null,
+                React.createElement(
+                  'td',
+                  { colSpan: 7, style: { padding: '40px', textAlign: 'center', color: '#666' } },
+                  'No wards found matching your criteria.'
+                )
+              ) : filteredWards.map((ward, index) => {
+                const typeInfo = getWardTypeInfo(ward.type);
+                const occupancyRate = ward.capacity > 0 ? (ward.currentOccupancy / ward.capacity) * 100 : 0;
+                
+                return React.createElement(
+                  'tr',
+                  {
+                    key: ward.id,
+                    style: {
+                      borderBottom: '1px solid #dee2e6',
+                      backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa'
+                    }
+                  },
+                  React.createElement(
+                    'td',
+                    { style: { padding: '12px' } },
+                    React.createElement(
+                      'div',
+                      null,
+                      React.createElement(
+                        'div',
+                        { style: { fontWeight: 'bold', color: '#333' } },
+                        ward.name
+                      ),
+                      ward.description && React.createElement(
+                        'div',
+                        { style: { fontSize: '12px', color: '#666' } },
+                        ward.description
+                      )
+                    )
+                  ),
+                  React.createElement(
+                    'td',
+                    { style: { padding: '12px' } },
+                    React.createElement(
+                      'span',
+                      {
+                        style: {
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          backgroundColor: '#e7f3ff',
+                          color: '#0066cc',
+                          fontSize: '12px',
+                          fontWeight: 'bold'
+                        }
+                      },
+                      `${typeInfo.icon} ${typeInfo.label}`
+                    )
+                  ),
+                  React.createElement(
+                    'td',
+                    { style: { padding: '12px' } },
+                    React.createElement(
+                      'div',
+                      { style: { textAlign: 'center' } },
+                      React.createElement(
+                        'div',
+                        { style: { fontWeight: 'bold', fontSize: '16px' } },
+                        ward.capacity
+                      ),
+                      React.createElement(
+                        'div',
+                        { style: { fontSize: '12px', color: '#666' } },
+                        'beds'
+                      )
+                    )
+                  ),
+                  React.createElement(
+                    'td',
+                    { style: { padding: '12px' } },
+                    React.createElement(
+                      'div',
+                      { style: { textAlign: 'center' } },
+                      React.createElement(
+                        'div',
+                        { style: { fontWeight: 'bold', fontSize: '16px' } },
+                        ward.currentOccupancy || 0
+                      ),
+                      React.createElement(
+                        'div',
+                        { style: { fontSize: '12px', color: '#666' } },
+                        `${Math.round(occupancyRate)}% occupied`
+                      )
+                    )
+                  ),
+                  React.createElement(
+                    'td',
+                    { style: { padding: '12px', textAlign: 'center' } },
+                    ward.floor || '-'
+                  ),
+                  React.createElement(
+                    'td',
+                    { style: { padding: '12px' } },
+                    React.createElement(
+                      'span',
+                      {
+                        style: {
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          backgroundColor: ward.isActive ? '#d4edda' : '#f8d7da',
+                          color: ward.isActive ? '#155724' : '#721c24'
+                        }
+                      },
+                      ward.isActive ? '✅ Active' : '❌ Inactive'
+                    )
+                  ),
+                  React.createElement(
+                    'td',
+                    { style: { padding: '12px', textAlign: 'center' } },
+                    React.createElement(
+                      'div',
+                      {
+                        style: {
+                          display: 'flex',
+                          gap: '5px',
+                          justifyContent: 'center',
+                          flexWrap: 'wrap'
+                        }
+                      },
+                      React.createElement(
+                        'button',
+                        {
+                          onClick: () => handleEdit(ward),
+                          style: {
+                            backgroundColor: '#007bff',
+                            color: 'white',
+                            border: 'none',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '11px'
+                          }
+                        },
+                        '✏️ Edit'
+                      ),
+                      React.createElement(
+                        'button',
+                        {
+                          onClick: () => handleToggleStatus(ward.id),
+                          style: {
+                            backgroundColor: ward.isActive ? '#dc3545' : '#28a745',
+                            color: 'white',
+                            border: 'none',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '11px'
+                          }
+                        },
+                        ward.isActive ? '❌ Deactivate' : '✅ Activate'
+                      ),
+                      React.createElement(
+                        'button',
+                        {
+                          onClick: () => handleDelete(ward.id),
+                          style: {
+                            backgroundColor: '#dc3545',
+                            color: 'white',
+                            border: 'none',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '11px'
+                          }
+                        },
+                        '🗑️ Delete'
+                      )
+                    )
+                  )
+                );
+              })
+            )
+          )
+        )
+      )
+    ),
+
+    // Add/Edit Ward Modal
+    (showAddForm || showEditForm) && React.createElement(
+      'div',
+      {
+        onClick: (e) => {
+          // Close modal when clicking outside the form
+          if (e.target === e.currentTarget) {
+            setShowAddForm(false);
+            setShowEditForm(false);
+            setEditingWard(null);
+            setFormData({
+              name: '',
+              type: 'GENERAL',
+              capacity: '',
+              description: '',
+              floor: ''
+            });
+          }
+        },
+        style: {
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }
+      },
+        React.createElement(
+          'div',
+          {
+            onClick: (e) => e.stopPropagation(), // Prevent modal close when clicking inside
+            onKeyDown: (e) => e.stopPropagation(), // Prevent keyboard events from bubbling
+            style: {
+              backgroundColor: 'white',
+              padding: '30px',
+              borderRadius: '8px',
+              width: '90%',
+              maxWidth: '600px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              position: 'relative',
+              zIndex: 1001
+            }
+          },
+        React.createElement(
+          'h3',
+          { style: { margin: '0 0 20px 0', color: '#333' } },
+          showEditForm ? '✏️ Edit Ward' : '➕ Add New Ward'
+        ),
+        React.createElement(
+          'form',
+          { onSubmit: handleSubmit },
+          React.createElement(
+            'div',
+            {
+              style: {
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '15px',
+                marginBottom: '15px'
+              }
+            },
+            React.createElement(
+              'div',
+              null,
+              React.createElement(
+                'label',
+                { style: { display: 'block', marginBottom: '5px', fontWeight: 'bold' } },
+                'Ward Name *'
+              ),
+              React.createElement('input', {
+                type: 'text',
+                name: 'name',
+                required: true,
+                value: formData.name,
+                onChange: handleInputChange,
+                autoComplete: 'off',
+                placeholder: 'Enter ward name (e.g., Ward A, General Ward)',
+                disabled: loading,
+                readOnly: false,
+                style: {
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  backgroundColor: loading ? '#f5f5f5' : 'white',
+                  cursor: loading ? 'not-allowed' : 'text'
+                }
+              })
+            ),
+            React.createElement(
+              'div',
+              null,
+              React.createElement(
+                'label',
+                { style: { display: 'block', marginBottom: '5px', fontWeight: 'bold' } },
+                'Ward Type *'
+              ),
+              React.createElement(
+                'select',
+                {
+                  name: 'type',
+                  required: true,
+                  value: formData.type,
+                  onChange: handleInputChange,
+                  style: {
+                    width: '100%',
+                    padding: '8px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    fontSize: '14px'
+                  }
+                },
+                ...wardTypes.map(type => React.createElement(
+                  'option',
+                  { key: type.value, value: type.value },
+                  `${type.icon} ${type.label}`
+                ))
+              )
+            )
+          ),
+          React.createElement(
+            'div',
+            {
+              style: {
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '15px',
+                marginBottom: '15px'
+              }
+            },
+            React.createElement(
+              'div',
+              null,
+              React.createElement(
+                'label',
+                { style: { display: 'block', marginBottom: '5px', fontWeight: 'bold' } },
+                'Capacity *'
+              ),
+              React.createElement('input', {
+                type: 'number',
+                name: 'capacity',
+                required: true,
+                min: 1,
+                value: formData.capacity,
+                onChange: handleInputChange,
+                style: {
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '14px'
+                }
+              })
+            ),
+            React.createElement(
+              'div',
+              null,
+              React.createElement(
+                'label',
+                { style: { display: 'block', marginBottom: '5px', fontWeight: 'bold' } },
+                'Floor'
+              ),
+              React.createElement('input', {
+                type: 'text',
+                name: 'floor',
+                value: formData.floor,
+                onChange: handleInputChange,
+                style: {
+                  width: '100%',
+                  padding: '8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  fontSize: '14px'
+                }
+              })
+            )
+          ),
+          React.createElement(
+            'div',
+            { style: { marginBottom: '20px' } },
+            React.createElement(
+              'label',
+              { style: { display: 'block', marginBottom: '5px', fontWeight: 'bold' } },
+              'Description'
+            ),
+            React.createElement('textarea', {
+              name: 'description',
+              rows: 3,
+              value: formData.description,
+              onChange: handleInputChange,
+              style: {
+                width: '100%',
+                padding: '8px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                fontSize: '14px',
+                resize: 'vertical'
+              }
+            })
+          ),
+          React.createElement(
+            'div',
+            {
+              style: {
+                display: 'flex',
+                gap: '10px',
+                justifyContent: 'flex-end'
+              }
+            },
+            React.createElement(
+              'button',
+              {
+                type: 'button',
+                onClick: () => {
+                  setShowAddForm(false);
+                  setShowEditForm(false);
+                  setEditingWard(null);
+                  setFormData({
+                    name: '',
+                    type: 'GENERAL',
+                    capacity: '',
+                    description: '',
+                    floor: ''
+                  });
+                },
+                style: {
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }
+              },
+              'Cancel'
+            ),
+            React.createElement(
+              'button',
+              {
+                type: 'submit',
+                disabled: loading,
+                style: {
+                  backgroundColor: loading ? '#6c757d' : '#007bff',
+                  color: 'white',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '4px',
+                  cursor: loading ? 'not-allowed' : 'pointer'
+                }
+              },
+              loading ? 'Saving...' : (showEditForm ? 'Update Ward' : 'Create Ward')
+            )
+          )
+        )
+      )
+    )
+  );
+};
+
+export default WardManagement;

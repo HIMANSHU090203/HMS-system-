@@ -1,0 +1,999 @@
+// HMS Database Schema - Complete 12 Table Structure
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. Users table - Authentication and role management
+model User {
+  id                 String   @id @default(cuid())
+  username           String   @unique
+  passwordHash       String   @map("password_hash")
+  role               UserRole
+  fullName           String   @map("full_name")
+  qualifications     String?  // Doctor qualifications (e.g., "M.B.B.S., M.D.")
+  registrationNumber String?  @map("registration_number") // Medical registration/license number
+  phone              String?  // Contact phone number
+  email              String?  // Contact email
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  appointmentsAsDoctor    Appointment[] @relation("DoctorAppointments")
+  consultationsAsDoctor   Consultation[] @relation("DoctorConsultations")
+  prescriptionsAsDoctor   Prescription[] @relation("DoctorPrescriptions")
+  prescriptionsDispensedBy Prescription[] @relation("DispensedPrescriptions")
+  prescriptionTemplates    PrescriptionTemplate[]
+  labTestsOrderedBy       LabTest[] @relation("OrderedByUser")
+  labTestsPerformedBy     LabTest[] @relation("PerformedByUser")
+  medicineTransactionsDispensed MedicineTransaction[] @relation("DispensedMedicines")
+  billsCreatedBy          Bill[] @relation("ReceptionistBills")
+  auditLogs               AuditLog[]
+  
+  // IPD Relations
+  admittedPatients        Admission[] @relation("AdmittedBy")
+  dischargedPatients      Admission[] @relation("DischargedBy")
+  dailyRounds             DailyRound[] @relation("DailyRounds")
+  vitalSignsRecorded      VitalSign[] @relation("VitalSigns")
+  inpatientBillsCreated   InpatientBill[] @relation("InpatientBills")
+  nursingShifts           NursingShift[] @relation("NursingShifts")
+  dischargeSummaries      DischargeSummary[] @relation("DischargeSummaries")
+  medicineOrders          MedicineOrder[]
+  technicianSelections    TechnicianTestSelection[]
+ 
+  @@map("users")
+}
+
+// ===== PHASE 1: MEDICAL CATALOGS FOR GENERALIZATION =====
+
+// A. Diagnosis Catalog - ICD-10 based
+model DiagnosisCatalog {
+  id          String   @id @default(cuid())
+  icdCode     String   @unique
+  name        String
+  category    String
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  consultations DiagnosisLink[]
+
+  @@map("diagnosis_catalog")
+}
+
+model DiagnosisLink {
+  id             String   @id @default(cuid())
+  consultationId String   @map("consultation_id")
+  diagnosisId    String   @map("diagnosis_id")
+  isPrimary      Boolean  @default(true) @map("is_primary")
+  
+  consultation Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  diagnosis    DiagnosisCatalog @relation(fields: [diagnosisId], references: [id])
+  
+  @@unique([consultationId, diagnosisId])
+  @@map("diagnosis_links")
+}
+
+// B. Allergy Catalog
+model AllergyCatalog {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  category    String   // Food, Drug, Environmental, etc.
+  severity    String   // Mild, Moderate, Severe
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  patientAllergies PatientAllergy[]
+
+  @@map("allergy_catalog")
+}
+
+model PatientAllergy {
+  id          String   @id @default(cuid())
+  patientId   String   @map("patient_id")
+  allergyId   String   @map("allergy_id")
+  severity    String   // Patient-specific severity
+  onsetDate   DateTime? @map("onset_date")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  patient   Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  allergy   AllergyCatalog @relation(fields: [allergyId], references: [id])
+
+  @@unique([patientId, allergyId])
+  @@map("patient_allergies")
+}
+
+// C. Chronic Condition Catalog
+model ChronicConditionCatalog {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  category    String   // Cardiovascular, Endocrine, etc.
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  patientConditions PatientChronicCondition[]
+
+  @@map("chronic_condition_catalog")
+}
+
+model PatientChronicCondition {
+  id             String   @id @default(cuid())
+  patientId      String   @map("patient_id")
+  conditionId   String   @map("condition_id")
+  diagnosisDate DateTime  @map("diagnosis_date")
+  currentStatus String   @map("current_status") // Active, Controlled, Resolved
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  patient    Patient                 @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  condition  ChronicConditionCatalog @relation(fields: [conditionId], references: [id])
+
+  @@map("patient_chronic_conditions")
+}
+
+// D. Enhanced Medicine Catalog
+model MedicineCatalog {
+  id                String   @id @default(cuid())
+  code              String   @unique
+  name              String
+  genericName       String?  @map("generic_name")
+  manufacturer      String?
+  category          String   // Antibiotic, Analgesic, etc.
+  therapeuticClass  String?  @map("therapeutic_class")
+  atcCode           String?  @map("atc_code")
+  price             Decimal  @db.Decimal(10, 2)
+  stockQuantity     Int      @default(0) @map("stock_quantity")
+  lowStockThreshold Int      @default(10) @map("low_stock_threshold")
+  expiryDate        DateTime? @map("expiry_date")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  transactions MedicineTransaction[]
+  orderItems    MedicineOrderItem[]
+  lowStockAlerts LowStockAlert[]
+  prescriptionItems PrescriptionItem[]
+  interactions1 DrugInteraction[] @relation("Medicine1Interactions")
+  interactions2 DrugInteraction[] @relation("Medicine2Interactions")
+
+  @@map("medicine_catalog")
+}
+
+// 2. Patients table - Patient information and medical profile
+model Patient {
+  id                    String   @id @default(cuid())
+  name                  String
+  age                   Int
+  gender                Gender
+  phone                 String   @unique
+  address               String
+  bloodGroup            String?  @map("blood_group")
+  allergies             String?  // Keep for backward compatibility
+  chronicConditions     String?  @map("chronic_conditions") // Keep for backward compatibility
+  emergencyContactName  String?  @map("emergency_contact_name")
+  emergencyContactPhone String?  @map("emergency_contact_phone")
+  patientType           PatientType @default(OUTPATIENT) @map("patient_type")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  appointments    Appointment[]
+  consultations   Consultation[]
+  prescriptions   Prescription[]
+  labTests        LabTest[]
+  bills           Bill[]
+  admissions      Admission[]
+  inpatientBills  InpatientBill[]
+  dischargeSummaries DischargeSummary[]
+  
+  // NEW: Catalog-based relations
+  structuredAllergies    PatientAllergy[]
+  structuredConditions  PatientChronicCondition[]
+  
+  @@map("patients")
+}
+
+// 3. Appointments table - Appointment scheduling
+model Appointment {
+  id        String            @id @default(cuid())
+  patientId String            @map("patient_id")
+  doctorId  String            @map("doctor_id")
+  date      DateTime
+  time      String
+  status    AppointmentStatus @default(SCHEDULED)
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor        User           @relation("DoctorAppointments", fields: [doctorId], references: [id])
+  consultations Consultation[]
+  prescriptions Prescription[]
+
+  @@map("appointments")
+}
+
+// 4. Consultations table - Doctor consultations and diagnosis
+model Consultation {
+  id             String   @id @default(cuid())
+  appointmentId  String   @map("appointment_id")
+  patientId      String   @map("patient_id")
+  doctorId       String   @map("doctor_id")
+  diagnosis      String   // Keep for backward compatibility
+  notes          String?
+  // Vital signs for OPD patients
+  temperature    Decimal? @db.Decimal(4,1) // Temperature in Celsius
+  bloodPressure  String?  @map("blood_pressure") // Blood pressure (e.g., "120/80")
+  followUpDate   DateTime? @map("follow_up_date") // Follow-up appointment date
+  consultationDate DateTime @default(now()) @map("consultation_date")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  appointment   Appointment   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  patient       Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor        User          @relation("DoctorConsultations", fields: [doctorId], references: [id])
+  prescriptions Prescription[]
+  diagnosisLinks DiagnosisLink[] // NEW: Structured diagnosis codes
+
+  @@map("consultations")
+}
+
+// 5. Prescriptions table - Multi-medicine prescriptions
+model Prescription {
+  id             String            @id @default(cuid())
+  patientId      String            @map("patient_id")
+  doctorId       String            @map("doctor_id")
+  appointmentId  String?           @map("appointment_id")
+  consultationId String?           @map("consultation_id")
+  prescriptionNumber String         @unique @map("prescription_number")
+  status         PrescriptionStatus @default(ACTIVE)
+  notes          String?           // General prescription notes
+  totalAmount    Decimal           @default(0) @db.Decimal(10, 2) @map("total_amount")
+  isDispensed    Boolean           @default(false) @map("is_dispensed")
+  dispensedAt    DateTime?         @map("dispensed_at")
+  dispensedBy    String?           @map("dispensed_by")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  patient                Patient               @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor                 User                  @relation("DoctorPrescriptions", fields: [doctorId], references: [id])
+  appointment            Appointment?          @relation(fields: [appointmentId], references: [id])
+  consultation           Consultation?         @relation(fields: [consultationId], references: [id])
+  prescriptionItems      PrescriptionItem[]
+  medicineTransactions   MedicineTransaction[]
+  dispensedByUser        User?                 @relation("DispensedPrescriptions", fields: [dispensedBy], references: [id])
+
+  @@map("prescriptions")
+}
+
+// 5a. Prescription Items table - Individual medicine items in prescriptions
+model PrescriptionItem {
+  id             String   @id @default(cuid())
+  prescriptionId String   @map("prescription_id")
+  medicineId     String   @map("medicine_id")
+  quantity       Int      // Number of units per dose
+  frequency      String   // Times per day (e.g., "1-0-1", "QID", "BD")
+  duration       Int      // Duration in days
+  instructions   String?  // Special instructions
+  dosage         String?  // Dosage strength (e.g., "500mg", "10ml")
+  withFood       String?  @map("with_food") // "With meal", "Before meal", "After meal", "Empty stomach", "Bedtime"
+  startDate      DateTime? @map("start_date")
+  endDate        DateTime? @map("end_date")
+  rowOrder       Int      @default(0) @map("row_order")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  prescription   Prescription    @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicine       MedicineCatalog @relation(fields: [medicineId], references: [id])
+
+  @@map("prescription_items")
+}
+
+// 6. Test Catalog table - Laboratory test catalog with pricing
+model TestCatalog {
+  id            String   @id @default(cuid())
+  testName      String   @unique @map("test_name")
+  description   String?
+  category      String?  // General, MRI, CT Scan, X-Ray, Cardiology, etc.
+  price         Decimal  @db.Decimal(10, 2)
+  units         String?  // mg/dL, U/L, Images, etc.
+  referenceRange String? @map("reference_range") // Normal ranges
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  labTests LabTest[]
+  technicianSelections TechnicianTestSelection[]
+
+  @@map("test_catalog")
+}
+
+// 7. Lab Tests table - Laboratory test orders and results
+model LabTest {
+  id                String      @id @default(cuid())
+  patientId         String      @map("patient_id")
+  orderedBy         String      @map("ordered_by")
+  testCatalogId     String      @map("test_catalog_id")
+  testNameSnapshot  String      @map("test_name_snapshot")
+  priceSnapshot     Decimal     @db.Decimal(10, 2) @map("price_snapshot")
+  status            LabTestStatus @default(PENDING)
+  scheduledDate     DateTime?   @map("scheduled_date")
+  results           String?
+  reportFile        String?     @map("report_file") // PDF/image file path
+  notes             String?     // Additional notes from technician
+  performedBy       String?     @map("performed_by") // Lab technician who performed the test
+  createdAt         DateTime    @default(now()) @map("created_at")
+  completedAt       DateTime?   @map("completed_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  patient     Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  orderedByUser User      @relation("OrderedByUser", fields: [orderedBy], references: [id])
+  performedByUser User?   @relation("PerformedByUser", fields: [performedBy], references: [id])
+  testCatalog TestCatalog @relation(fields: [testCatalogId], references: [id])
+
+  @@map("lab_tests")
+}
+
+// 8. Medicines table - Medicine inventory management
+// Medicines table - DEPRECATED, use MedicineCatalog instead
+model Medicine {
+  id                String   @id @default(cuid())
+  name              String   @unique
+  quantity          Int      @default(0)
+  price             Decimal  @db.Decimal(10, 2)
+  lowStockThreshold Int      @default(10) @map("low_stock_threshold")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // No relations - kept separate for backward compatibility only
+  // New transactions should use MedicineCatalog
+
+  @@map("medicines")
+}
+
+// 9. Medicine Transactions table - Medicine dispensing transactions
+model MedicineTransaction {
+  id                String   @id @default(cuid())
+  prescriptionId    String   @map("prescription_id")
+  medicineId        String   @map("medicine_id")
+  quantityDispensed Int      @map("quantity_dispensed")
+  dispensedBy       String   @map("dispensed_by")
+  dispensedAt       DateTime @default(now()) @map("dispensed_at")
+
+  // Relations
+  prescription Prescription     @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicine     MedicineCatalog  @relation(fields: [medicineId], references: [id])
+  dispensedByUser User           @relation("DispensedMedicines", fields: [dispensedBy], references: [id])
+
+  @@map("medicine_transactions")
+}
+
+// 10. Bills table - Billing and payment management
+model Bill {
+  id            String        @id @default(cuid())
+  patientId     String        @map("patient_id")
+  receptionistId String       @map("receptionist_id")
+  items         Json          // JSON array of bill items
+  subtotal      Decimal       @db.Decimal(10, 2)
+  tax           Decimal       @db.Decimal(10, 2)
+  totalAmount   Decimal       @db.Decimal(10, 2) @map("total_amount")
+  paymentMode   PaymentMode   @map("payment_mode")
+  paymentStatus PaymentStatus @default(PENDING) @map("payment_status")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  patient       Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  receptionist  User    @relation("ReceptionistBills", fields: [receptionistId], references: [id])
+
+  @@map("bills")
+}
+
+// 11. Audit Logs table - System audit trail
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  action    String
+  tableName String   @map("table_name")
+  recordId  String   @map("record_id")
+  oldValue  Json?    @map("old_value")
+  newValue  Json?    @map("new_value")
+  timestamp DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// 12. System Config table - System configuration settings
+model SystemConfig {
+  id          String   @id @default(cuid())
+  configKey   String   @unique @map("config_key")
+  configValue String   @map("config_value")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("system_config")
+}
+
+// ===== IPD MANAGEMENT MODULES =====
+
+// 13. Wards table - Ward management for IPD
+model Ward {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  type            WardType
+  capacity        Int
+  currentOccupancy Int     @default(0) @map("current_occupancy")
+  isActive        Boolean  @default(true) @map("is_active")
+  description     String?
+  floor           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  beds            Bed[]
+  admissions      Admission[]
+
+  @@map("wards")
+}
+
+// 14. Beds table - Bed management within wards
+model Bed {
+  id          String   @id @default(cuid())
+  wardId      String   @map("ward_id")
+  bedNumber   String   @map("bed_number")
+  bedType     BedType  @map("bed_type")
+  isOccupied  Boolean  @default(false) @map("is_occupied")
+  isActive    Boolean  @default(true) @map("is_active")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  ward        Ward       @relation(fields: [wardId], references: [id], onDelete: Cascade)
+  admissions  Admission[]
+
+  @@unique([wardId, bedNumber])
+  @@map("beds")
+}
+
+// 15. Admissions table - Patient admission management
+model Admission {
+  id              String          @id @default(cuid())
+  patientId       String          @map("patient_id")
+  wardId          String          @map("ward_id")
+  bedId           String          @map("bed_id")
+  admissionDate   DateTime        @map("admission_date")
+  dischargeDate   DateTime?       @map("discharge_date")
+  admissionType   AdmissionType   @map("admission_type")
+  admissionReason String          @map("admission_reason")
+  status          AdmissionStatus @default(ADMITTED)
+  notes           String?
+  admittedBy      String          @map("admitted_by")
+  dischargedBy    String?         @map("discharged_by")
+  dischargeNotes  String?         @map("discharge_notes")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  patient         Patient         @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  ward            Ward            @relation(fields: [wardId], references: [id])
+  bed             Bed             @relation(fields: [bedId], references: [id])
+  admittedByUser  User            @relation("AdmittedBy", fields: [admittedBy], references: [id])
+  dischargedByUser User?          @relation("DischargedBy", fields: [dischargedBy], references: [id])
+  inpatientBills  InpatientBill[]
+  dailyRounds     DailyRound[]
+  vitalSigns      VitalSign[]
+  nursingShifts   NursingShift[]
+  dischargeSummary DischargeSummary?
+
+  @@map("admissions")
+}
+
+// 16. Daily Rounds table - Doctor rounds for admitted patients
+model DailyRound {
+  id            String   @id @default(cuid())
+  admissionId   String   @map("admission_id")
+  doctorId      String   @map("doctor_id")
+  roundDate     DateTime @map("round_date")
+  diagnosis     String
+  treatment     String
+  notes         String?
+  nextRoundDate DateTime? @map("next_round_date")
+  isCompleted   Boolean  @default(false) @map("is_completed")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  admission     Admission @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+  doctor        User      @relation("DailyRounds", fields: [doctorId], references: [id])
+
+  @@map("daily_rounds")
+}
+
+// 17. Vital Signs table - Patient vital signs monitoring
+model VitalSign {
+  id                String   @id @default(cuid())
+  admissionId       String   @map("admission_id")
+  recordedBy        String   @map("recorded_by")
+  temperature       Decimal? @db.Decimal(4,1)
+  bloodPressure     String?  @map("blood_pressure")
+  heartRate         Int?     @map("heart_rate")
+  respiratoryRate   Int?     @map("respiratory_rate")
+  oxygenSaturation  Decimal? @db.Decimal(4,1) @map("oxygen_saturation")
+  weight            Decimal? @db.Decimal(5,2)
+  height            Decimal? @db.Decimal(5,2)
+  notes             String?
+  recordedAt        DateTime @default(now()) @map("recorded_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  // Relations
+  admission         Admission @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+  recordedByUser    User      @relation("VitalSigns", fields: [recordedBy], references: [id])
+
+  @@map("vital_signs")
+}
+
+// 18. Inpatient Bills table - Billing for IPD patients
+model InpatientBill {
+  id                String        @id @default(cuid())
+  admissionId       String        @map("admission_id")
+  patientId         String        @map("patient_id")
+  roomCharges       Decimal       @db.Decimal(10,2) @map("room_charges")
+  procedureCharges  Decimal       @db.Decimal(10,2) @map("procedure_charges")
+  medicineCharges   Decimal       @db.Decimal(10,2) @map("medicine_charges")
+  labCharges        Decimal       @db.Decimal(10,2) @map("lab_charges")
+  otherCharges      Decimal       @db.Decimal(10,2) @map("other_charges")
+  totalAmount       Decimal       @db.Decimal(10,2) @map("total_amount")
+  status            PaymentStatus @default(PENDING)
+  paymentMode       PaymentMode?  @map("payment_mode")
+  paidAmount        Decimal?      @db.Decimal(10,2) @map("paid_amount")
+  notes             String?
+  createdBy         String        @map("created_by")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  admission         Admission     @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+  patient           Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  createdByUser     User          @relation("InpatientBills", fields: [createdBy], references: [id])
+
+  @@map("inpatient_bills")
+}
+
+// 19. Nursing Shifts table - Nursing care management
+model NursingShift {
+  id            String   @id @default(cuid())
+  admissionId   String   @map("admission_id")
+  nurseId       String   @map("nurse_id")
+  shiftType     ShiftType @map("shift_type")
+  shiftDate     DateTime @map("shift_date")
+  startTime     DateTime @map("start_time")
+  endTime       DateTime? @map("end_time")
+  notes         String?
+  medications   Json?    // JSON array of medications administered
+  isCompleted   Boolean  @default(false) @map("is_completed")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  admission     Admission @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+  nurse         User      @relation("NursingShifts", fields: [nurseId], references: [id])
+
+  @@map("nursing_shifts")
+}
+
+// 20. Discharge Summary table - Patient discharge documentation
+model DischargeSummary {
+  id                    String   @id @default(cuid())
+  admissionId           String   @unique @map("admission_id")
+  patientId             String   @map("patient_id")
+  doctorId              String   @map("doctor_id")
+  admissionDate         DateTime @map("admission_date")
+  dischargeDate         DateTime @map("discharge_date")
+  diagnosis             String
+  treatmentGiven        String   @map("treatment_given")
+  proceduresPerformed   String?  @map("procedures_performed")
+  medicationsPrescribed String?  @map("medications_prescribed")
+  followUpInstructions  String?  @map("follow_up_instructions")
+  nextAppointmentDate   DateTime? @map("next_appointment_date")
+  notes                 String?
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  admission             Admission @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+  patient               Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor                User      @relation("DischargeSummaries", fields: [doctorId], references: [id])
+
+  @@map("discharge_summaries")
+}
+
+// ===== PHASE 2: HOSPITAL CONFIGURATION =====
+
+// Hospital Configuration - Settings per hospital
+model HospitalConfig {
+  id                    String   @id @default(cuid())
+  hospitalName          String   @map("hospital_name")
+  hospitalCode          String?  @unique @map("hospital_code")
+  
+  // Address Details
+  address               String?
+  city                  String?
+  state                 String?
+  postalCode            String?  @map("postal_code")
+  country               String?
+  
+  // Contact Information
+  phone                 String?
+  email                 String?
+  emergencyContact      String?  @map("emergency_contact")
+  
+  // Regulatory Information
+  hospitalLicenseNumber String?  @map("hospital_license_number")
+  taxId                 String?  @map("tax_id")
+  
+  // Branding
+  logoUrl               String?  @map("logo_url") // URL to uploaded logo
+  
+  // Operational Settings
+  timezone              String   @default("UTC")
+  defaultLanguage       String   @default("en") @map("default_language")
+  currency              String   @default("USD")
+  taxRate               Decimal? @db.Decimal(5,2) @map("tax_rate")
+  
+  // Appointment Settings
+  appointmentSlotDuration Int    @default(30) @map("appointment_slot_duration") // in minutes
+  defaultDoctorConsultationDuration Int @default(30) @map("default_doctor_consultation_duration") // in minutes
+  workingHours          Json?    @map("working_hours") // Operating hours per day
+  
+  // Payment Settings
+  defaultPaymentTerms   String?  @map("default_payment_terms") // net30, net15, etc.
+  defaultPaymentMode    PaymentMode? @map("default_payment_mode")
+  enableInsurance       Boolean  @default(false) @map("enable_insurance")
+  
+  // Medicine Pricing Settings
+  medicineMarkupPercentage Decimal? @db.Decimal(5,2) @default(0) @map("medicine_markup_percentage") // Percentage markup for medicine prices (e.g., 20.00 for 20%)
+  
+  // Module Settings
+  modulesEnabled        Json?    @map("modules_enabled") // Which modules are active
+  labTestsEnabled       Boolean  @default(true) @map("lab_tests_enabled")
+  ipdEnabled            Boolean  @default(true) @map("ipd_enabled")
+  billingEnabled        Boolean  @default(true) @map("billing_enabled")
+  
+  // Custom Fields (for hospital-specific patient fields)
+  patientCustomFields    Json?    @map("patient_custom_fields")
+  
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("hospital_config")
+}
+
+// Lab Test Configuration - Hospital-specific lab test settings
+model LabTestConfig {
+  id              String   @id @default(cuid())
+  hospitalId      String   @map("hospital_id") // Single hospital for now
+  testCategory    String   @map("test_category") // Hematology, Biochemistry, etc.
+  categoryEnabled Boolean  @default(true) @map("category_enabled")
+  defaultPrice    Decimal? @db.Decimal(10,2) @map("default_price")
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("lab_test_config")
+}
+
+// Technician Test Selection - Maps technicians to their available tests
+model TechnicianTestSelection {
+  id            String   @id @default(cuid())
+  technicianId  String   @map("technician_id")
+  testCatalogId String   @map("test_catalog_id")
+  labType       String   @map("lab_type") // General, MRI, CT Scan, X-Ray, etc.
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  technician   User       @relation(fields: [technicianId], references: [id], onDelete: Cascade)
+  testCatalog TestCatalog @relation(fields: [testCatalogId], references: [id], onDelete: Cascade)
+
+  @@unique([technicianId, testCatalogId])
+  @@map("technician_test_selections")
+}
+
+// Medicine Configuration - Hospital-specific medicine settings
+model MedicineConfig {
+  id                    String   @id @default(cuid())
+  hospitalId             String   @map("hospital_id")
+  category               String
+  categoryEnabled        Boolean  @default(true) @map("category_enabled")
+  defaultLowStockThreshold Int    @default(10) @map("default_low_stock_threshold")
+  enableAutoOrder        Boolean  @default(false) @map("enable_auto_order")
+  autoOrderThreshold     Int?     @map("auto_order_threshold")
+  notes                  String?
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@map("medicine_config")
+}
+
+// ===== PRESCRIPTION SAFETY FEATURES =====
+
+// Drug Interaction Catalog
+model DrugInteraction {
+  id                String   @id @default(cuid())
+  medicine1Id       String   @map("medicine1_id")
+  medicine2Id       String   @map("medicine2_id")
+  interactionType   String   @map("interaction_type") // "Major", "Moderate", "Minor"
+  description       String
+  clinicalEffect    String?  @map("clinical_effect")
+  management        String?  // How to manage the interaction
+  severity          String   // "High", "Medium", "Low"
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  medicine1         MedicineCatalog @relation("Medicine1Interactions", fields: [medicine1Id], references: [id])
+  medicine2         MedicineCatalog @relation("Medicine2Interactions", fields: [medicine2Id], references: [id])
+
+  @@unique([medicine1Id, medicine2Id])
+  @@map("drug_interactions")
+}
+
+// Prescription Templates
+model PrescriptionTemplate {
+  id                String   @id @default(cuid())
+  name              String
+  description       String?
+  doctorId          String   @map("doctor_id")
+  templateData      Json     @map("template_data") // JSON array of template items
+  isActive          Boolean  @default(true) @map("is_active")
+  isPublic          Boolean  @default(false) @map("is_public") // Can other doctors use this template
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  doctor            User     @relation(fields: [doctorId], references: [id])
+
+  @@map("prescription_templates")
+}
+
+// Prescription Audit Log
+model PrescriptionAudit {
+  id                String   @id @default(cuid())
+  prescriptionId    String   @map("prescription_id")
+  action            String   // "CREATED", "UPDATED", "DISPENSED", "CANCELLED"
+  performedBy       String   @map("performed_by")
+  performedAt       DateTime @default(now()) @map("performed_at")
+  changes           Json?    // JSON object describing what changed
+  notes             String?
+
+  @@map("prescription_audit")
+}
+
+// Enhanced Medicine Module - New Tables
+
+// Supplier/Company Management
+model Supplier {
+  id          String   @id @default(cuid())
+  name        String
+  address     String?
+  contact     String?
+  email       String?
+  gstNumber   String?  @map("gst_number")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  orders      MedicineOrder[]
+
+  @@map("suppliers")
+}
+
+// Medicine Order Management
+model MedicineOrder {
+  id                String   @id @default(cuid())
+  orderNumber       String   @unique @map("order_number")
+  supplierId        String   @map("supplier_id")
+  orderDate         DateTime @default(now()) @map("order_date")
+  expectedDelivery  DateTime? @map("expected_delivery")
+  actualDelivery    DateTime? @map("actual_delivery")
+  status            OrderStatus @default(PENDING)
+  totalAmount       Decimal  @db.Decimal(10, 2) @map("total_amount")
+  taxRate           Decimal  @db.Decimal(5, 2) @default(0) @map("tax_rate")
+  taxAmount         Decimal  @db.Decimal(10, 2) @default(0) @map("tax_amount")
+  invoiceNumber     String?  @map("invoice_number")
+  invoiceFile       String?  @map("invoice_file")
+  paymentStatus     PaymentStatus @default(PENDING) @map("payment_status")
+  paymentDate       DateTime? @map("payment_date")
+  notes             String?
+  createdBy         String   @map("created_by")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  supplier          Supplier @relation(fields: [supplierId], references: [id])
+  orderItems        MedicineOrderItem[]
+  createdByUser     User     @relation(fields: [createdBy], references: [id])
+
+  @@map("medicine_orders")
+}
+
+// Medicine Order Items
+model MedicineOrderItem {
+  id          String   @id @default(cuid())
+  orderId     String   @map("order_id")
+  medicineId  String   @map("medicine_id")
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(10, 2) @map("unit_price")
+  totalPrice  Decimal  @db.Decimal(10, 2) @map("total_price")
+  receivedQty Int      @default(0) @map("received_qty")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  order       MedicineOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  medicine    MedicineCatalog @relation(fields: [medicineId], references: [id])
+
+  @@map("medicine_order_items")
+}
+
+// Low Stock Alerts
+model LowStockAlert {
+  id            String   @id @default(cuid())
+  medicineId    String   @map("medicine_id")
+  threshold     Int
+  currentStock  Int      @map("current_stock")
+  lastAlerted   DateTime? @map("last_alerted")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Relations
+  medicine      MedicineCatalog @relation(fields: [medicineId], references: [id])
+
+  @@map("low_stock_alerts")
+}
+
+// Enums
+enum UserRole {
+  ADMIN
+  DOCTOR
+  LAB_TECH
+  PHARMACY
+  RECEPTIONIST
+  // IPD-specific roles
+  NURSE
+  WARD_MANAGER
+  NURSING_SUPERVISOR
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum LabTestStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PrescriptionStatus {
+  ACTIVE
+  DISPENSED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentMode {
+  CASH
+  CARD
+  UPI
+  NET_BANKING
+  INSURANCE
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  PARTIAL
+  REFUNDED
+  CANCELLED
+}
+
+// IPD-specific enums
+enum PatientType {
+  OUTPATIENT
+  INPATIENT
+  EMERGENCY
+}
+
+enum WardType {
+  GENERAL
+  ICU
+  PRIVATE
+  EMERGENCY
+  PEDIATRIC
+  MATERNITY
+  SURGICAL
+  CARDIAC
+  NEUROLOGY
+  ORTHOPEDIC
+}
+
+enum BedType {
+  GENERAL
+  ICU
+  PRIVATE
+  SEMI_PRIVATE
+  ISOLATION
+}
+
+enum AdmissionType {
+  EMERGENCY
+  PLANNED
+  TRANSFER
+  OBSERVATION
+}
+
+enum AdmissionStatus {
+  ADMITTED
+  DISCHARGED
+  TRANSFERRED
+  CANCELLED
+  ABSENT_WITHOUT_LEAVE
+}
+
+enum ShiftType {
+  MORNING
+  AFTERNOON
+  NIGHT
+  GENERAL
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}

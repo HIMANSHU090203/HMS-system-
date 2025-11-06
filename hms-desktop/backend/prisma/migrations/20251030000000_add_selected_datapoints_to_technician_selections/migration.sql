@@ -1,0 +1,2 @@
+-- Migration already applied in database
+-- This migration added selected_datapoints field to technician_test_selections table
