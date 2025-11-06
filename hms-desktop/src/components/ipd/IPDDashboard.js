@@ -24,6 +24,16 @@ const IPDDashboard = ({ onBack, isAuthenticated }) => {
 
   const loadDashboardData = async () => {
     setLoading(true);
+    setError('');
+    
+    // Check authentication token before making API calls
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      setError('❌ Authentication required. Please login first.');
+      setLoading(false);
+      return;
+    }
+    
     try {
       // Load all statistics in parallel
       const [wardStats, bedStats, admissionStats, currentAdmissions, wards] = await Promise.all([
@@ -72,18 +82,41 @@ const IPDDashboard = ({ onBack, isAuthenticated }) => {
       setError('');
     } catch (err) {
       console.error('IPD Dashboard data loading error:', err);
+      
+      // Check if it's an authentication error
       if (err.response?.status === 401) {
-        setError('Authentication required. Please login first.');
+        setError('❌ Authentication failed. Please login again.');
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
-      } else if (err.code === 'ERR_NETWORK' || !err.response) {
-        setError('❌ Network error - Backend server may not be running. Check console (F12) for details.');
+        // Optionally reload the page to redirect to login
+        // window.location.reload();
+      } 
+      // Check if it's a permission error
+      else if (err.response?.status === 403) {
+        setError('❌ Access denied. You may not have permission to view IPD data. Required roles: ADMIN, DOCTOR, or WARD_MANAGER');
+      }
+      // Check if it's a network error (backend not reachable)
+      else if (err.code === 'ERR_NETWORK' || err.code === 'ECONNREFUSED' || !err.response) {
+        // Verify backend is actually running
+        try {
+          const healthCheck = await fetch('http://localhost:3000/health');
+          if (healthCheck.ok) {
+            setError('❌ Backend is running but API calls are failing. Check authentication token or user permissions.');
+          } else {
+            setError('❌ Backend server may not be running. Check console (F12) for details.');
+          }
+        } catch (healthErr) {
+          setError('❌ Network error - Backend server may not be running. Check console (F12) for details.');
+        }
         console.error('Backend connection error:', {
           message: err.message,
           code: err.code,
+          response: err.response?.status,
           stack: err.stack
         });
-      } else {
+      }
+      // Other API errors
+      else {
         const errorMsg = err.response?.data?.message || err.message || 'Failed to load dashboard data';
         setError(`❌ Failed to load dashboard data: ${errorMsg}`);
         console.error('API error response:', err.response?.data);

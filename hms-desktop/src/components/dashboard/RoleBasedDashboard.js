@@ -14,12 +14,22 @@ const RoleBasedDashboard = ({ user, onNavigate, onLogout, currentModule = 'dashb
   const [dashboardData, setDashboardData] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   const userRole = user?.role;
   const roleInfo = getRoleDisplayInfo(userRole);
   const availableModules = getRoleBasedModules(userRole);
   const quickActions = getRoleQuickActions(userRole);
   const dashboardWidgets = getRoleDashboardWidgets(userRole);
+
+  // Update time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000); // Update every second
+
+    return () => clearInterval(timer); // Cleanup on unmount
+  }, []);
 
   useEffect(() => {
     loadDashboardData();
@@ -315,7 +325,7 @@ const RoleBasedDashboard = ({ user, onNavigate, onLogout, currentModule = 'dashb
           React.createElement(
             'div',
             { style: { fontSize: '20px', fontWeight: '600', marginBottom: '4px' } },
-            new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
           ),
           React.createElement(
             'div',
