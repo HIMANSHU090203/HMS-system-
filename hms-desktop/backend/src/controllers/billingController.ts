@@ -33,6 +33,42 @@ const billSearchSchema = z.object({
   limit: z.coerce.number().min(1).max(100).optional().default(20),
 });
 
+// Helper function to generate invoice number and increment counter
+const generateInvoiceNumber = async (): Promise<string> => {
+  // Get hospital config
+  const hospitalConfig = await prisma.hospitalConfig.findFirst();
+  
+  // Get billing settings
+  const billingSettings = (hospitalConfig?.modulesEnabled as any)?.billingSettings || {};
+  const invoicePrefix = billingSettings.invoicePrefix || 'INV-';
+  const nextInvoiceNumber = billingSettings.nextInvoiceNumber || 1;
+  
+  // Generate invoice number
+  const invoiceNumber = `${invoicePrefix}${nextInvoiceNumber}`;
+  
+  // Increment next invoice number in config
+  const updatedBillingSettings = {
+    ...billingSettings,
+    nextInvoiceNumber: nextInvoiceNumber + 1,
+  };
+  
+  // Update hospital config
+  if (hospitalConfig) {
+    const modulesEnabled = (hospitalConfig.modulesEnabled as any) || {};
+    await prisma.hospitalConfig.update({
+      where: { id: hospitalConfig.id },
+      data: {
+        modulesEnabled: {
+          ...modulesEnabled,
+          billingSettings: updatedBillingSettings,
+        },
+      },
+    });
+  }
+  
+  return invoiceNumber;
+};
+
 // Create a new bill
 export const createBill = async (req: AuthRequest, res: Response) => {
   try {
@@ -59,11 +95,15 @@ export const createBill = async (req: AuthRequest, res: Response) => {
     const tax = 0; // Simple implementation - no tax for now
     const totalAmount = subtotal + tax;
 
+    // Generate invoice number using prefix and next invoice number
+    const invoiceNumber = await generateInvoiceNumber();
+
     // Create bill
     const bill = await prisma.bill.create({
       data: {
         patientId: validatedData.patientId,
         receptionistId: userId,
+        invoiceNumber,
         items: validatedData.items,
         subtotal,
         tax,
@@ -478,7 +518,7 @@ export const generateInvoice = async (req: AuthRequest, res: Response) => {
 
     // Format invoice data
     const invoiceData = {
-      billNumber: bill.id,
+      billNumber: bill.invoiceNumber || bill.id, // Use invoiceNumber if available, fallback to id
       billDate: bill.createdAt,
       patient: bill.patient,
       items: bill.items,

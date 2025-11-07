@@ -1032,13 +1032,29 @@ const LabTestManagement = ({ user, isAuthenticated, onBack }) => {
   };
 
   const renderCatalogTab = () => {
+    // Filter tests based on user role
+    // For lab technicians: show only assigned tests
+    // For admins: show all tests
+    const displayTests = user.role === 'LAB_TECH' 
+      ? testCatalog.filter(test => mySelectedTests.includes(test.id))
+      : testCatalog;
+    
+    const testCount = displayTests.length;
+    const totalCount = testCatalog.length;
+    
     return React.createElement(
       'div',
       null,
       React.createElement(
         'h3',
         { style: { fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: '#111827' } },
-        `Test Catalog ${testCatalog.length > 0 ? `(${testCatalog.length} tests)` : ''}`
+        `Test Catalog ${testCount > 0 ? `(${testCount} ${user.role === 'LAB_TECH' ? 'assigned' : ''} test${testCount !== 1 ? 's' : ''}${user.role === 'LAB_TECH' && totalCount > testCount ? ` of ${totalCount} total` : ''})` : ''}`
+      ),
+      user.role === 'LAB_TECH' && testCount === 0 && totalCount > 0 && React.createElement(
+        'div',
+        { style: { padding: '16px', backgroundColor: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '8px', marginBottom: '16px', color: '#92400E' } },
+        React.createElement('strong', null, 'No tests assigned. '),
+        'Please contact an administrator to assign tests to you, or use the "Select My Tests" button in the "My Tests" tab.'
       ),
       loading && testCatalog.length === 0 ? 
         React.createElement(
@@ -1049,13 +1065,15 @@ const LabTestManagement = ({ user, isAuthenticated, onBack }) => {
       React.createElement(
         'div',
         { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' } },
-        !Array.isArray(testCatalog) || testCatalog.length === 0 ? 
+        !Array.isArray(displayTests) || displayTests.length === 0 ? 
           React.createElement(
             'div',
             { style: { padding: '48px', textAlign: 'center', color: '#6B7280' } },
-            'No tests available in catalog. Please check if the database is seeded.'
+            user.role === 'LAB_TECH' 
+              ? 'No tests assigned to you. Please contact an administrator to assign tests.'
+              : 'No tests available in catalog. Please check if the database is seeded.'
           ) :
-          testCatalog.map(test => 
+          displayTests.map(test => 
             React.createElement(
               'div',
               { 
@@ -1423,10 +1441,45 @@ const LabTestManagement = ({ user, isAuthenticated, onBack }) => {
       { style: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 } },
       React.createElement(
         'div',
-        { style: { backgroundColor: '#FFFFFF', borderRadius: '8px', padding: '24px', width: '100%', maxWidth: '500px' } },
+        { style: { backgroundColor: '#FFFFFF', borderRadius: '8px', padding: '24px', width: '100%', maxWidth: '500px', position: 'relative' } },
+        // Close button
+        React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: () => {
+              setShowAddForm(false);
+              setEditingLabTest(null);
+              setFormData({ patientId: '', orderedBy: '', testCatalogId: '', notes: '' });
+            },
+            style: { 
+              position: 'absolute', 
+              top: '16px', 
+              right: '16px', 
+              backgroundColor: 'transparent', 
+              border: 'none', 
+              cursor: 'pointer', 
+              padding: '4px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              borderRadius: '4px', 
+              transition: 'background-color 0.2s',
+              zIndex: 10
+            },
+            onMouseEnter: (e) => { e.currentTarget.style.backgroundColor = '#F3F4F6'; },
+            onMouseLeave: (e) => { e.currentTarget.style.backgroundColor = 'transparent'; }
+          },
+          React.createElement(
+            'svg',
+            { width: '24', height: '24', viewBox: '0 0 24 24', fill: 'none', stroke: '#6B7280', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
+            React.createElement('line', { x1: '18', y1: '6', x2: '6', y2: '18' }),
+            React.createElement('line', { x1: '6', y1: '6', x2: '18', y2: '18' })
+          )
+        ),
         React.createElement(
           'h2',
-          { style: { fontSize: '18px', fontWeight: '600', marginBottom: '16px' } },
+          { style: { fontSize: '18px', fontWeight: '600', marginBottom: '16px', paddingRight: '32px' } },
           editingLabTest ? 'Edit Lab Test' : 'Add New Lab Test'
         ),
         React.createElement(
@@ -1476,10 +1529,22 @@ const LabTestManagement = ({ user, isAuthenticated, onBack }) => {
                   fontSize: '14px'
                 }
               },
-              React.createElement('option', { value: '' }, testCatalog.length > 0 ? 'Select Test' : 'Loading tests...'),
-              Array.isArray(testCatalog) ? testCatalog.map(test => 
-                React.createElement('option', { key: test.id, value: test.id }, test.testName || 'Unknown')
-              ) : null
+              React.createElement('option', { value: '' }, (() => {
+                // Filter tests based on user role for the dropdown
+                const availableTests = user.role === 'LAB_TECH' 
+                  ? testCatalog.filter(test => mySelectedTests.includes(test.id))
+                  : testCatalog;
+                return availableTests.length > 0 ? 'Select Test' : (user.role === 'LAB_TECH' ? 'No tests assigned' : 'Loading tests...');
+              })()),
+              (() => {
+                // Filter tests based on user role
+                const availableTests = user.role === 'LAB_TECH' 
+                  ? testCatalog.filter(test => mySelectedTests.includes(test.id))
+                  : testCatalog;
+                return Array.isArray(availableTests) ? availableTests.map(test => 
+                  React.createElement('option', { key: test.id, value: test.id }, test.testName || 'Unknown')
+                ) : null;
+              })()
             )
           ),
           React.createElement(
@@ -1648,10 +1713,44 @@ const LabTestManagement = ({ user, isAuthenticated, onBack }) => {
       { style: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, overflow: 'auto' } },
       React.createElement(
         'div',
-        { style: { backgroundColor: '#FFFFFF', borderRadius: '8px', padding: '24px', width: '100%', maxWidth: '800px', maxHeight: '80vh', overflow: 'auto' } },
+        { style: { backgroundColor: '#FFFFFF', borderRadius: '8px', padding: '24px', width: '100%', maxWidth: '800px', maxHeight: '80vh', overflow: 'auto', position: 'relative' } },
+        // Close button
+        React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: () => {
+              setShowTechSelection(false);
+              setSelectedTechTests([]);
+            },
+            style: { 
+              position: 'absolute', 
+              top: '16px', 
+              right: '16px', 
+              backgroundColor: 'transparent', 
+              border: 'none', 
+              cursor: 'pointer', 
+              padding: '4px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              borderRadius: '4px', 
+              transition: 'background-color 0.2s',
+              zIndex: 10
+            },
+            onMouseEnter: (e) => { e.currentTarget.style.backgroundColor = '#F3F4F6'; },
+            onMouseLeave: (e) => { e.currentTarget.style.backgroundColor = 'transparent'; }
+          },
+          React.createElement(
+            'svg',
+            { width: '24', height: '24', viewBox: '0 0 24 24', fill: 'none', stroke: '#6B7280', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
+            React.createElement('line', { x1: '18', y1: '6', x2: '6', y2: '18' }),
+            React.createElement('line', { x1: '6', y1: '6', x2: '18', y2: '18' })
+          )
+        ),
         React.createElement(
           'h2',
-          { style: { fontSize: '18px', fontWeight: '600', marginBottom: '8px' } },
+          { style: { fontSize: '18px', fontWeight: '600', marginBottom: '8px', paddingRight: '32px' } },
           mySelectedTests.length > 0 ? 'Update Your Selected Tests' : 'Select Tests You Can Perform'
         ),
         React.createElement(

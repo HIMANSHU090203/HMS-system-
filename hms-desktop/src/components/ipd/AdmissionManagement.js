@@ -1103,12 +1103,58 @@ const AdmissionManagement = ({ onBack, isAuthenticated }) => {
             width: '90%',
             maxWidth: '700px',
             maxHeight: '90vh',
-            overflowY: 'auto'
+            overflowY: 'auto',
+            position: 'relative'
           }
         },
+        // Close button
+        React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: () => {
+              setShowAddForm(false);
+              setShowEditForm(false);
+              setEditingAdmission(null);
+              setFormData({
+                patientId: '',
+                wardId: '',
+                bedId: '',
+                admissionType: 'PLANNED',
+                admissionDate: new Date().toISOString().split('T')[0],
+                expectedDischargeDate: '',
+                reason: '',
+                notes: ''
+              });
+            },
+            style: { 
+              position: 'absolute', 
+              top: '16px', 
+              right: '16px', 
+              backgroundColor: 'transparent', 
+              border: 'none', 
+              cursor: 'pointer', 
+              padding: '4px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              borderRadius: '4px', 
+              transition: 'background-color 0.2s',
+              zIndex: 10
+            },
+            onMouseEnter: (e) => { e.currentTarget.style.backgroundColor = '#F3F4F6'; },
+            onMouseLeave: (e) => { e.currentTarget.style.backgroundColor = 'transparent'; }
+          },
+          React.createElement(
+            'svg',
+            { width: '24', height: '24', viewBox: '0 0 24 24', fill: 'none', stroke: '#6B7280', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
+            React.createElement('line', { x1: '18', y1: '6', x2: '6', y2: '18' }),
+            React.createElement('line', { x1: '6', y1: '6', x2: '18', y2: '18' })
+          )
+        ),
         React.createElement(
           'h3',
-          { style: { margin: '0 0 20px 0', color: '#333' } },
+          { style: { margin: '0 0 20px 0', color: '#333', paddingRight: '32px' } },
           showEditForm ? '✏️ Edit Admission' : '➕ Admit Patient'
         ),
         React.createElement(
@@ -1413,12 +1459,47 @@ const AdmissionManagement = ({ onBack, isAuthenticated }) => {
             padding: '30px',
             borderRadius: '8px',
             width: '90%',
-            maxWidth: '500px'
+            maxWidth: '500px',
+            position: 'relative'
           }
         },
+        // Close button
+        React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: () => {
+              setShowDischargeForm(false);
+              setDischargingAdmission(null);
+            },
+            style: { 
+              position: 'absolute', 
+              top: '16px', 
+              right: '16px', 
+              backgroundColor: 'transparent', 
+              border: 'none', 
+              cursor: 'pointer', 
+              padding: '4px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              borderRadius: '4px', 
+              transition: 'background-color 0.2s',
+              zIndex: 10
+            },
+            onMouseEnter: (e) => { e.currentTarget.style.backgroundColor = '#F3F4F6'; },
+            onMouseLeave: (e) => { e.currentTarget.style.backgroundColor = 'transparent'; }
+          },
+          React.createElement(
+            'svg',
+            { width: '24', height: '24', viewBox: '0 0 24 24', fill: 'none', stroke: '#6B7280', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
+            React.createElement('line', { x1: '18', y1: '6', x2: '6', y2: '18' }),
+            React.createElement('line', { x1: '6', y1: '6', x2: '18', y2: '18' })
+          )
+        ),
         React.createElement(
           'h3',
-          { style: { margin: '0 0 20px 0', color: '#333' } },
+          { style: { margin: '0 0 20px 0', color: '#333', paddingRight: '32px' } },
           '✅ Discharge Patient'
         ),
         React.createElement(

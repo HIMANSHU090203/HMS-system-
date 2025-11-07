@@ -2,6 +2,8 @@
 import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth';
 import logger, { loggerWithContext } from '../utils/logger';
+import path from 'path';
+import fs from 'fs';
 
 const prisma = new PrismaClient();
 const configLogger = loggerWithContext('ConfigController');
@@ -105,5 +107,63 @@ export const updateMedicineConfig = async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     configLogger.error('Update medicine config error', error);
     res.status(500).json({ success: false, message: 'Failed to update medicine configuration' });
+  }
+};
+
+// Upload hospital logo
+export const uploadHospitalLogo = async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    const filePath = req.file.path;
+    // Convert to URL path (relative to uploads directory)
+    const logoUrl = `/api/uploads/logos/${path.basename(filePath)}`;
+
+    // Get existing config
+    const existingConfig = await prisma.hospitalConfig.findFirst();
+    
+    // Delete old logo file if it exists
+    if (existingConfig?.logoUrl) {
+      try {
+        const oldLogoPath = existingConfig.logoUrl.replace('/api/uploads/', 'uploads/');
+        if (fs.existsSync(oldLogoPath)) {
+          fs.unlinkSync(oldLogoPath);
+        }
+      } catch (err) {
+        configLogger.warn('Failed to delete old logo file', { error: err });
+      }
+    }
+
+    // Update or create config with new logo URL
+    const config = existingConfig
+      ? await prisma.hospitalConfig.update({
+          where: { id: existingConfig.id },
+          data: { logoUrl }
+        })
+      : await prisma.hospitalConfig.create({
+          data: {
+            hospitalName: 'HMS Hospital',
+            logoUrl
+          }
+        });
+
+    configLogger.info('Hospital logo uploaded successfully', { logoUrl });
+    res.json({
+      success: true,
+      message: 'Logo uploaded successfully',
+      data: { config, logoUrl }
+    });
+  } catch (error: any) {
+    configLogger.error('Upload hospital logo error', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload logo',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };

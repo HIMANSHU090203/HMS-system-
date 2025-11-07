@@ -6,6 +6,42 @@ import { AuthRequest } from '../middleware/auth';
 
 const prisma = new PrismaClient();
 
+// Helper function to generate invoice number and increment counter
+const generateInvoiceNumber = async (): Promise<string> => {
+  // Get hospital config
+  const hospitalConfig = await prisma.hospitalConfig.findFirst();
+  
+  // Get billing settings
+  const billingSettings = (hospitalConfig?.modulesEnabled as any)?.billingSettings || {};
+  const invoicePrefix = billingSettings.invoicePrefix || 'INV-';
+  const nextInvoiceNumber = billingSettings.nextInvoiceNumber || 1;
+  
+  // Generate invoice number
+  const invoiceNumber = `${invoicePrefix}${nextInvoiceNumber}`;
+  
+  // Increment next invoice number in config
+  const updatedBillingSettings = {
+    ...billingSettings,
+    nextInvoiceNumber: nextInvoiceNumber + 1,
+  };
+  
+  // Update hospital config
+  if (hospitalConfig) {
+    const modulesEnabled = (hospitalConfig.modulesEnabled as any) || {};
+    await prisma.hospitalConfig.update({
+      where: { id: hospitalConfig.id },
+      data: {
+        modulesEnabled: {
+          ...modulesEnabled,
+          billingSettings: updatedBillingSettings,
+        },
+      },
+    });
+  }
+  
+  return invoiceNumber;
+};
+
 // Validation schemas
 const inpatientBillCreateSchema = z.object({
   admissionId: z.string().min(1, 'Admission ID is required'),
@@ -62,10 +98,14 @@ export const createInpatientBill = async (req: AuthRequest, res: Response) => {
                        validatedData.labCharges + 
                        validatedData.otherCharges;
 
+    // Generate invoice number using prefix and next invoice number
+    const invoiceNumber = await generateInvoiceNumber();
+
     const inpatientBill = await prisma.inpatientBill.create({
       data: {
         admissionId: validatedData.admissionId,
         patientId: admission.patientId,
+        invoiceNumber,
         roomCharges: validatedData.roomCharges,
         procedureCharges: validatedData.procedureCharges,
         medicineCharges: validatedData.medicineCharges,

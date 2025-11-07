@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import configService from '../../lib/api/services/configService';
+import { CURRENCIES, TIMEZONES } from '../../lib/utils/currencyAndTimezone';
 
 const HospitalSetupWizard = ({ onComplete }) => {
   const [formData, setFormData] = useState({
@@ -452,12 +453,9 @@ const HospitalSetupWizard = ({ onComplete }) => {
                 onChange: handleInputChange,
                 style: { width: '100%', padding: '8px 12px', border: '1px solid #D1D5DB', borderRadius: '4px', fontSize: '14px' }
               },
-              React.createElement('option', { value: 'UTC' }, 'UTC'),
-              React.createElement('option', { value: 'America/New_York' }, 'America/New_York'),
-              React.createElement('option', { value: 'America/Los_Angeles' }, 'America/Los_Angeles'),
-              React.createElement('option', { value: 'Europe/London' }, 'Europe/London'),
-              React.createElement('option', { value: 'Asia/Kolkata' }, 'Asia/Kolkata'),
-              React.createElement('option', { value: 'Asia/Tokyo' }, 'Asia/Tokyo')
+              TIMEZONES.map(tz => 
+                React.createElement('option', { key: tz.value, value: tz.value }, tz.label)
+              )
             )
           ),
           React.createElement(
@@ -508,12 +506,11 @@ const HospitalSetupWizard = ({ onComplete }) => {
                 onChange: handleInputChange,
                 style: { width: '100%', padding: '8px 12px', border: '1px solid #D1D5DB', borderRadius: '4px', fontSize: '14px' }
               },
-              React.createElement('option', { value: 'USD' }, 'USD'),
-              React.createElement('option', { value: 'INR' }, 'INR'),
-              React.createElement('option', { value: 'EUR' }, 'EUR'),
-              React.createElement('option', { value: 'GBP' }, 'GBP'),
-              React.createElement('option', { value: 'JPY' }, 'JPY'),
-              React.createElement('option', { value: 'CAD' }, 'CAD')
+              CURRENCIES.map(currency => 
+                React.createElement('option', { key: currency.code, value: currency.code },
+                  `${currency.code} - ${currency.name} (${currency.symbol})`
+                )
+              )
             )
           ),
           React.createElement(

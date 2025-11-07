@@ -99,6 +99,26 @@ class ConfigService {
     return response.data.data;
   }
 
+  async uploadHospitalLogo(file: File): Promise<{ config: HospitalConfig; logoUrl: string }> {
+    const formData = new FormData();
+    formData.append('logo', file);
+    
+    // Get token for manual header setting
+    const token = localStorage.getItem('accessToken');
+    const headers: any = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token.trim()}`;
+    }
+    // Don't set Content-Type - let browser set it with boundary for multipart/form-data
+    
+    const response = await apiClient.post<ApiResponse<{ config: HospitalConfig; logoUrl: string }>>(
+      '/config/hospital/logo',
+      formData,
+      { headers }
+    );
+    return response.data.data;
+  }
+
   // ========== LAB TEST CONFIG ==========
   async getLabTestConfig(): Promise<{ configs: LabTestConfig[] }> {
     const response = await apiClient.get<ApiResponse<{ configs: LabTestConfig[] }>>('/config/lab-tests');

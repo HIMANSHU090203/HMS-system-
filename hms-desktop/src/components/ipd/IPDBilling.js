@@ -222,6 +222,10 @@ const IPDBilling = ({ onBack, isAuthenticated, user }) => {
       const configResponse = await configService.getHospitalConfig();
       const hospitalConfig = configResponse.config || {};
 
+      // Get billing settings for footer text
+      const billingSettings = hospitalConfig.modulesEnabled?.billingSettings || {};
+      const footerText = billingSettings.footerText || '';
+
       // Prepare invoice data for IPD bill
       const invoiceData = {
         hospitalConfig: {
@@ -236,9 +240,10 @@ const IPDBilling = ({ onBack, isAuthenticated, user }) => {
           email: hospitalConfig.email,
           emergencyContact: hospitalConfig.emergencyContact || '1066',
           billingEmail: hospitalConfig.email || '',
-          insuranceValidityNote: hospitalConfig.insuranceValidityNote || 'This Receipt is valid for an employer or insurer, who contractually obligated to reimburse the medical expenses covered by MediSave and/or MediShield.'
+          insuranceValidityNote: hospitalConfig.insuranceValidityNote || 'This Receipt is valid for an employer or insurer, who contractually obligated to reimburse the medical expenses covered by MediSave and/or MediShield.',
+          footerText: footerText
         },
-        billNumber: billDetails.id || bill.id,
+        billNumber: billDetails.invoiceNumber || billDetails.id || bill.id,
         billDate: billDetails.createdAt || new Date().toISOString(),
         ipNumber: billDetails.admission?.id || selectedAdmission?.id || '',
         idNumber: billDetails.patient?.id || selectedAdmission?.patient?.id || '',

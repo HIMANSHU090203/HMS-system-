@@ -256,6 +256,10 @@ const BillingManagement = () => {
       const configResponse = await configService.getHospitalConfig();
       const hospitalConfig = configResponse.config || {};
 
+      // Get billing settings for footer text
+      const billingSettings = hospitalConfig.modulesEnabled?.billingSettings || {};
+      const footerText = billingSettings.footerText || '';
+
       // Format items for invoice
       const invoiceItems = selected.map(r => ({
         description: r.description,
@@ -278,7 +282,8 @@ const BillingManagement = () => {
           email: hospitalConfig.email,
           emergencyContact: hospitalConfig.emergencyContact || '1066',
           billingEmail: hospitalConfig.email || '',
-          insuranceValidityNote: hospitalConfig.insuranceValidityNote || 'This Receipt is valid for an employer or insurer, who contractually obligated to reimburse the medical expenses covered by MediSave and/or MediShield.'
+          insuranceValidityNote: hospitalConfig.insuranceValidityNote || 'This Receipt is valid for an employer or insurer, who contractually obligated to reimburse the medical expenses covered by MediSave and/or MediShield.',
+          footerText: footerText
         },
         billNumber: `BILL-${new Date().getTime()}`,
         billDate: new Date().toISOString(),

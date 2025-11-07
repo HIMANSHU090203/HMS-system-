@@ -18,6 +18,7 @@ import { getInfoContent } from '../../lib/infoContent';
 const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
   const [activeTab, setActiveTab] = useState('list'); // 'list', 'stats'
   const [prescriptions, setPrescriptions] = useState([]);
+  const [hospitalConfig, setHospitalConfig] = useState({ currency: 'USD' });
   const [patients, setPatients] = useState([]);
   const [medicines, setMedicines] = useState([]);
   const [doctors, setDoctors] = useState([]);
@@ -60,6 +61,19 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
       loadData();
     }
   }, [isAuthenticated, currentPage, searchTerm, statusFilter, activeTab]);
+
+  // Load hospital config for currency
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const data = await configService.getHospitalConfig();
+        setHospitalConfig(data.config || { currency: 'USD' });
+      } catch (error) {
+        console.error('Failed to load hospital config:', error);
+      }
+    };
+    loadConfig();
+  }, []);
 
   const loadData = async () => {
     setLoading(true);
@@ -649,10 +663,15 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
   };
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
+    const currency = hospitalConfig.currency || 'USD';
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency,
+      }).format(amount);
+    } catch (error) {
+      return `${currency} ${parseFloat(amount).toFixed(2)}`;
+    }
   };
 
   const renderPrescriptionList = () => (

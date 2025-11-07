@@ -84,9 +84,43 @@ function formatTime(date) {
   return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
 }
 
-// Format currency with Indian Rupee symbol
-function formatCurrency(amount) {
-  return `₹${Number(amount).toFixed(2)}`;
+// Format currency based on hospital config
+function formatCurrency(amount, currencyCode = 'USD') {
+  const currencySymbols = {
+    'USD': '$',
+    'EUR': '€',
+    'GBP': '£',
+    'INR': '₹',
+    'JPY': '¥',
+    'CNY': '¥',
+    'AUD': 'A$',
+    'CAD': 'C$',
+    'CHF': 'CHF',
+    'SGD': 'S$',
+    'AED': 'AED',
+    'SAR': 'SAR',
+    'PKR': '₨',
+    'BDT': '৳',
+    'LKR': 'Rs',
+    'NPR': 'Rs',
+    'MYR': 'RM',
+    'THB': '฿',
+    'IDR': 'Rp',
+    'PHP': '₱',
+    'VND': '₫',
+    'KRW': '₩',
+    'ZAR': 'R',
+    'BRL': 'R$',
+    'MXN': '$',
+    'RUB': '₽',
+    'TRY': '₺',
+    'NGN': '₦',
+    'EGP': 'E£',
+    'KES': 'KSh',
+  };
+  
+  const symbol = currencySymbols[currencyCode] || currencyCode;
+  return `${symbol}${Number(amount).toFixed(2)}`;
 }
 
 const InvoicePDFGenerator = {
@@ -95,6 +129,7 @@ const InvoicePDFGenerator = {
     const printWindow = window.open('', '_blank');
     
     const hospitalConfig = invoiceData.hospitalConfig || {};
+    const currency = hospitalConfig.currency || 'USD';
     const patient = invoiceData.patient || {};
     const items = invoiceData.items || [];
     
@@ -120,7 +155,7 @@ const InvoicePDFGenerator = {
       return `
         <tr>
           <td style="padding: 8px; border-bottom: 1px solid #ddd; font-size: 10pt;">${item.description || item.name || 'Service'}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right; font-size: 10pt;">${formatCurrency(amount)}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right; font-size: 10pt;">${formatCurrency(amount, currency)}</td>
         </tr>
       `;
     }).join('');
@@ -407,13 +442,13 @@ const InvoicePDFGenerator = {
                 ${discount > 0 ? `
                   <tr>
                     <td style="text-align: right; font-weight: bold; padding-top: 10px;">Discount:</td>
-                    <td style="text-align: right; font-weight: bold; padding-top: 10px;">${formatCurrency(discount)}</td>
+                    <td style="text-align: right; font-weight: bold; padding-top: 10px;">${formatCurrency(discount, currency)}</td>
                   </tr>
                 ` : ''}
                 ${tax > 0 ? `
                   <tr>
                     <td style="text-align: right; font-weight: bold;">Tax:</td>
-                    <td style="text-align: right; font-weight: bold;">${formatCurrency(tax)}</td>
+                    <td style="text-align: right; font-weight: bold;">${formatCurrency(tax, currency)}</td>
                   </tr>
                 ` : ''}
               </tbody>
@@ -427,13 +462,13 @@ const InvoicePDFGenerator = {
             </div>
             <div class="total-amount">
               <div class="total-label">Bill Amount</div>
-              <div class="total-value">${formatCurrency(totalAmount)}</div>
+              <div class="total-value">${formatCurrency(totalAmount, currency)}</div>
             </div>
           </div>
 
           ${invoiceData.refundableDeposit !== undefined ? `
             <div style="margin-top: 5mm; font-size: 10pt;">
-              <strong>Refundable Deposit As On ${formatDate(invoiceData.depositDate)} ${formatTime(invoiceData.depositDate)}</strong> ${formatCurrency(invoiceData.refundableDeposit)}
+              <strong>Refundable Deposit As On ${formatDate(invoiceData.depositDate)} ${formatTime(invoiceData.depositDate)}</strong> ${formatCurrency(invoiceData.refundableDeposit, currency)}
             </div>
           ` : ''}
 
@@ -453,6 +488,13 @@ const InvoicePDFGenerator = {
               </div>
             ` : ''}
           </div>
+
+          ${hospitalConfig.footerText ? `
+            <!-- Invoice Footer Text -->
+            <div class="footer-text" style="margin-top: 8mm; padding: 4mm; font-size: 9pt; color: #333; line-height: 1.6; border-top: 1px solid #ddd; white-space: pre-wrap;">
+              ${hospitalConfig.footerText}
+            </div>
+          ` : ''}
 
           <!-- Footer -->
           <div class="footer">
@@ -481,6 +523,7 @@ const InvoicePDFGenerator = {
     const printWindow = window.open('', '_blank');
     
     const hospitalConfig = invoiceData.hospitalConfig || {};
+    const currency = hospitalConfig.currency || 'USD';
     const patient = invoiceData.patient || {};
     const admission = invoiceData.admission || {};
     
@@ -521,7 +564,7 @@ const InvoicePDFGenerator = {
     const servicesRows = services.map(service => `
       <tr>
         <td style="padding: 8px; border-bottom: 1px solid #ddd; font-size: 10pt;">${service.name}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right; font-size: 10pt;">${formatCurrency(service.amount)}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right; font-size: 10pt;">${formatCurrency(service.amount, currency)}</td>
       </tr>
     `).join('');
     
@@ -819,13 +862,13 @@ const InvoicePDFGenerator = {
             </div>
             <div class="total-amount">
               <div class="total-label">Bill Amount</div>
-              <div class="total-value">${formatCurrency(totalAmount)}</div>
+              <div class="total-value">${formatCurrency(totalAmount, currency)}</div>
             </div>
           </div>
 
           ${invoiceData.refundableDeposit !== undefined ? `
             <div style="margin-top: 5mm; font-size: 10pt;">
-              <strong>Refundable Deposit As On ${formatDate(invoiceData.depositDate)} ${formatTime(invoiceData.depositDate)}</strong> ${formatCurrency(invoiceData.refundableDeposit)}
+              <strong>Refundable Deposit As On ${formatDate(invoiceData.depositDate)} ${formatTime(invoiceData.depositDate)}</strong> ${formatCurrency(invoiceData.refundableDeposit, currency)}
             </div>
           ` : ''}
 
@@ -849,6 +892,13 @@ const InvoicePDFGenerator = {
               </div>
             ` : ''}
           </div>
+
+          ${hospitalConfig.footerText ? `
+            <!-- Invoice Footer Text -->
+            <div class="footer-text" style="margin-top: 8mm; padding: 4mm; font-size: 9pt; color: #333; line-height: 1.6; border-top: 1px solid #ddd; white-space: pre-wrap;">
+              ${hospitalConfig.footerText}
+            </div>
+          ` : ''}
 
           <!-- Footer -->
           <div class="footer">

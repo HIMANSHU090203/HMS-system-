@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import billingService from '../../lib/api/services/billingService';
+import configService from '../../lib/api/services/configService';
 
 const BillingManagement = ({ onBack, isAuthenticated }) => {
   console.log('BillingManagement component rendering...');
@@ -186,11 +187,32 @@ const BillingManagement = ({ onBack, isAuthenticated }) => {
     return subtotal + tax;
   };
 
+  // Get hospital config for currency
+  const [hospitalConfig, setHospitalConfig] = useState({ currency: 'USD' });
+  
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const data = await configService.getHospitalConfig();
+        setHospitalConfig(data.config || { currency: 'USD' });
+      } catch (error) {
+        console.error('Failed to load hospital config:', error);
+      }
+    };
+    loadConfig();
+  }, []);
+
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
+    const currency = hospitalConfig.currency || 'USD';
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency,
+      }).format(amount);
+    } catch (error) {
+      // Fallback if currency is invalid
+      return `${currency} ${parseFloat(amount).toFixed(2)}`;
+    }
   };
 
   const getStatusColor = (status) => {
@@ -535,8 +557,18 @@ const BillingManagement = ({ onBack, isAuthenticated }) => {
                       <input
                         type="number"
                         placeholder="Quantity"
-                        value={item.quantity}
-                        onChange={(e) => updateBillItem(index, 'quantity', parseInt(e.target.value) || 0)}
+                        value={item.quantity ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || val === '-') {
+                            updateBillItem(index, 'quantity', '');
+                          } else {
+                            const numVal = parseInt(val, 10);
+                            if (!isNaN(numVal) && numVal >= 1) {
+                              updateBillItem(index, 'quantity', numVal);
+                            }
+                          }
+                        }}
                         className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                         min="1"
                         required
@@ -544,8 +576,18 @@ const BillingManagement = ({ onBack, isAuthenticated }) => {
                       <input
                         type="number"
                         placeholder="Unit Price"
-                        value={item.unitPrice}
-                        onChange={(e) => updateBillItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                        value={item.unitPrice ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || val === '-') {
+                            updateBillItem(index, 'unitPrice', '');
+                          } else {
+                            const numVal = parseFloat(val);
+                            if (!isNaN(numVal) && numVal >= 0) {
+                              updateBillItem(index, 'unitPrice', numVal);
+                            }
+                          }
+                        }}
                         className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                         min="0"
                         step="0.01"

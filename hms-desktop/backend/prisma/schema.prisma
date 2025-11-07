@@ -397,6 +397,7 @@ model Bill {
   id            String        @id @default(cuid())
   patientId     String        @map("patient_id")
   receptionistId String       @map("receptionist_id")
+  invoiceNumber String?       @map("invoice_number")
   items         Json          // JSON array of bill items
   subtotal      Decimal       @db.Decimal(10, 2)
   tax           Decimal       @db.Decimal(10, 2)
@@ -565,6 +566,7 @@ model InpatientBill {
   id                String        @id @default(cuid())
   admissionId       String        @map("admission_id")
   patientId         String        @map("patient_id")
+  invoiceNumber     String?       @map("invoice_number")
   roomCharges       Decimal       @db.Decimal(10,2) @map("room_charges")
   procedureCharges  Decimal       @db.Decimal(10,2) @map("procedure_charges")
   medicineCharges   Decimal       @db.Decimal(10,2) @map("medicine_charges")

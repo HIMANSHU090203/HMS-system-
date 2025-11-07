@@ -33,6 +33,12 @@ apiClient.interceptors.request.use(
         localStorage.removeItem('refreshToken');
       }
     }
+    
+    // For FormData, let browser set Content-Type with boundary
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
+    
     return config;
   },
   (error) => {
