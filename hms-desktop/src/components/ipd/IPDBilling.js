@@ -195,6 +195,19 @@ const IPDBilling = ({ onBack, isAuthenticated, user }) => {
     });
   };
 
+  const loadChargesPreview = async (admissionId) => {
+    try {
+      const charges = await admissionService.getChargesPreview(admissionId);
+      setBillForm(prev => ({
+        ...prev,
+        roomCharges: charges.roomCharges.toString(),
+      }));
+    } catch (err) {
+      console.error('Error loading charges preview:', err);
+      // Don't show error, just use default 0
+    }
+  };
+
   const handleEditBill = (bill) => {
     setEditingBill(bill);
     setBillForm({
@@ -450,10 +463,14 @@ const IPDBilling = ({ onBack, isAuthenticated, user }) => {
           canManageBills && React.createElement(
             'button',
             {
-              onClick: () => {
+              onClick: async () => {
                 setShowBillForm(true);
                 setEditingBill(null);
                 resetBillForm();
+                // Auto-populate room charges based on ward and days
+                if (selectedAdmission?.id) {
+                  await loadChargesPreview(selectedAdmission.id);
+                }
               },
               style: {
                 backgroundColor: '#28a745',
@@ -513,7 +530,32 @@ const IPDBilling = ({ onBack, isAuthenticated, user }) => {
             React.createElement(
               'div',
               null,
-              React.createElement('label', { style: { display: 'block', marginBottom: '5px', fontWeight: 'bold' } }, 'Room Charges *'),
+              React.createElement(
+                'div',
+                { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' } },
+                React.createElement('label', { style: { fontWeight: 'bold' } }, 'Room Charges *'),
+                selectedAdmission && !editingBill && React.createElement(
+                  'button',
+                  {
+                    type: 'button',
+                    onClick: async () => {
+                      if (selectedAdmission?.id) {
+                        await loadChargesPreview(selectedAdmission.id);
+                      }
+                    },
+                    style: {
+                      fontSize: '12px',
+                      padding: '4px 8px',
+                      backgroundColor: '#007bff',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }
+                  },
+                  '🔄 Recalculate'
+                )
+              ),
               React.createElement('input', {
                 type: 'number',
                 name: 'roomCharges',
@@ -523,7 +565,12 @@ const IPDBilling = ({ onBack, isAuthenticated, user }) => {
                 min: '0',
                 step: '0.01',
                 style: { width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #dee2e6' }
-              })
+              }),
+              selectedAdmission && !editingBill && React.createElement(
+                'p',
+                { style: { margin: '5px 0 0 0', fontSize: '11px', color: '#666', fontStyle: 'italic' } },
+                'Auto-calculated based on ward daily rate and admission days. You can modify if needed.'
+              )
             ),
             React.createElement(
               'div',

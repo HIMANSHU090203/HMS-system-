@@ -18,7 +18,8 @@ const WardManagement = ({ onBack, isAuthenticated }) => {
     type: 'GENERAL',
     capacity: '',
     description: '',
-    floor: ''
+    floor: '',
+    dailyRate: ''
   });
 
   const wardTypes = [
@@ -31,7 +32,8 @@ const WardManagement = ({ onBack, isAuthenticated }) => {
     { value: 'SURGICAL', label: 'Surgical Ward', icon: '⚕️' },
     { value: 'CARDIAC', label: 'Cardiac Ward', icon: '❤️' },
     { value: 'NEUROLOGY', label: 'Neurology Ward', icon: '🧠' },
-    { value: 'ORTHOPEDIC', label: 'Orthopedic Ward', icon: '🦴' }
+    { value: 'ORTHOPEDIC', label: 'Orthopedic Ward', icon: '🦴' },
+    { value: 'DAY_CARE', label: 'Day Care Ward (Same-Day Surgery)', icon: '🏥' }
   ];
 
   useEffect(() => {
@@ -130,7 +132,10 @@ const WardManagement = ({ onBack, isAuthenticated }) => {
         type: formData.type,
         capacity: parseInt(formData.capacity),
         description: formData.description?.trim() || undefined,
-        floor: formData.floor?.trim() || undefined
+        floor: formData.floor?.trim() || undefined,
+        dailyRate: formData.dailyRate && formData.dailyRate !== '' 
+          ? parseFloat(formData.dailyRate) 
+          : undefined
       };
 
       if (showEditForm && editingWard) {
@@ -152,7 +157,8 @@ const WardManagement = ({ onBack, isAuthenticated }) => {
         type: 'GENERAL',
         capacity: '',
         description: '',
-        floor: ''
+        floor: '',
+        dailyRate: ''
       });
 
     } catch (err) {
@@ -199,7 +205,8 @@ const WardManagement = ({ onBack, isAuthenticated }) => {
       type: ward.type || 'GENERAL',
       capacity: ward.capacity?.toString() || '',
       description: ward.description || '',
-      floor: ward.floor || ''
+      floor: ward.floor || '',
+      dailyRate: ward.dailyRate ? ward.dailyRate.toString() : ''
     });
     setShowEditForm(true);
     setShowAddForm(false);
@@ -758,6 +765,7 @@ const WardManagement = ({ onBack, isAuthenticated }) => {
                 React.createElement('th', { style: { padding: '12px', textAlign: 'left', fontWeight: 'bold' } }, 'Capacity'),
                 React.createElement('th', { style: { padding: '12px', textAlign: 'left', fontWeight: 'bold' } }, 'Occupancy'),
                 React.createElement('th', { style: { padding: '12px', textAlign: 'left', fontWeight: 'bold' } }, 'Floor'),
+                React.createElement('th', { style: { padding: '12px', textAlign: 'right', fontWeight: 'bold' } }, 'Daily Rate'),
                 React.createElement('th', { style: { padding: '12px', textAlign: 'left', fontWeight: 'bold' } }, 'Status'),
                 React.createElement('th', { style: { padding: '12px', textAlign: 'center', fontWeight: 'bold' } }, 'Actions')
               )
@@ -768,11 +776,11 @@ const WardManagement = ({ onBack, isAuthenticated }) => {
               filteredWards.length === 0 ? React.createElement(
                 'tr',
                 null,
-                React.createElement(
-                  'td',
-                  { colSpan: 7, style: { padding: '40px', textAlign: 'center', color: '#666' } },
-                  'No wards found matching your criteria.'
-                )
+                  React.createElement(
+                    'td',
+                    { colSpan: 8, style: { padding: '40px', textAlign: 'center', color: '#666' } },
+                    'No wards found matching your criteria.'
+                  )
               ) : filteredWards.map((ward, index) => {
                 const typeInfo = getWardTypeInfo(ward.type);
                 const occupancyRate = ward.capacity > 0 ? (ward.currentOccupancy / ward.capacity) * 100 : 0;
@@ -864,6 +872,21 @@ const WardManagement = ({ onBack, isAuthenticated }) => {
                     'td',
                     { style: { padding: '12px', textAlign: 'center' } },
                     ward.floor || '-'
+                  ),
+                  React.createElement(
+                    'td',
+                    { style: { padding: '12px', textAlign: 'right' } },
+                    ward.dailyRate 
+                      ? React.createElement(
+                          'span',
+                          { style: { fontWeight: 'bold', color: '#28a745' } },
+                          `₹${parseFloat(ward.dailyRate).toFixed(2)}/day`
+                        )
+                      : React.createElement(
+                          'span',
+                          { style: { fontSize: '12px', color: '#999', fontStyle: 'italic' } },
+                          'Default rate'
+                        )
                   ),
                   React.createElement(
                     'td',
@@ -1182,6 +1205,36 @@ const WardManagement = ({ onBack, isAuthenticated }) => {
           ),
           React.createElement(
             'div',
+            { style: { marginBottom: '15px' } },
+            React.createElement(
+              'label',
+              { style: { display: 'block', marginBottom: '5px', fontWeight: 'bold' } },
+              'Daily Rate (₹)'
+            ),
+            React.createElement('input', {
+              type: 'number',
+              name: 'dailyRate',
+              min: 0,
+              step: '0.01',
+              value: formData.dailyRate,
+              onChange: handleInputChange,
+              placeholder: 'e.g., 1500.00 (optional - uses ward type default if not set)',
+              style: {
+                width: '100%',
+                padding: '8px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                fontSize: '14px'
+              }
+            }),
+            React.createElement(
+              'p',
+              { style: { margin: '5px 0 0 0', fontSize: '12px', color: '#666' } },
+              'Daily charge per bed. If not set, will use default rate for ward type from hospital config.'
+            )
+          ),
+          React.createElement(
+            'div',
             { style: { marginBottom: '20px' } },
             React.createElement(
               'label',
@@ -1225,7 +1278,8 @@ const WardManagement = ({ onBack, isAuthenticated }) => {
                     type: 'GENERAL',
                     capacity: '',
                     description: '',
-                    floor: ''
+                    floor: '',
+                    dailyRate: ''
                   });
                 },
                 style: {

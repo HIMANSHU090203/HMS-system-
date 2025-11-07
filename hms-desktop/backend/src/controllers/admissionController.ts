@@ -14,6 +14,14 @@ const admissionCreateSchema = z.object({
   admissionType: z.nativeEnum(AdmissionType, { message: 'Invalid admission type' }),
   admissionReason: z.string().min(1, 'Admission reason is required').max(500, 'Reason too long'),
   notes: z.string().max(1000, 'Notes too long').optional(),
+  // Day care specific fields
+  isDayCare: z.boolean().optional(),
+  procedureStartTime: z.string().transform(str => str ? new Date(str) : undefined).optional(),
+  procedureEndTime: z.string().transform(str => str ? new Date(str) : undefined).optional(),
+  recoveryStartTime: z.string().transform(str => str ? new Date(str) : undefined).optional(),
+  recoveryEndTime: z.string().transform(str => str ? new Date(str) : undefined).optional(),
+  expectedDischargeTime: z.string().transform(str => str ? new Date(str) : undefined).optional(),
+  homeSupportAvailable: z.boolean().optional(),
 });
 
 const admissionUpdateSchema = z.object({
@@ -24,6 +32,14 @@ const admissionUpdateSchema = z.object({
   status: z.nativeEnum(AdmissionStatus, { message: 'Invalid admission status' }).optional(),
   notes: z.string().max(1000, 'Notes too long').optional(),
   dischargeNotes: z.string().max(1000, 'Discharge notes too long').optional(),
+  // Day care specific fields
+  isDayCare: z.boolean().optional(),
+  procedureStartTime: z.string().transform(str => str ? new Date(str) : undefined).optional(),
+  procedureEndTime: z.string().transform(str => str ? new Date(str) : undefined).optional(),
+  recoveryStartTime: z.string().transform(str => str ? new Date(str) : undefined).optional(),
+  recoveryEndTime: z.string().transform(str => str ? new Date(str) : undefined).optional(),
+  expectedDischargeTime: z.string().transform(str => str ? new Date(str) : undefined).optional(),
+  homeSupportAvailable: z.boolean().optional(),
 });
 
 const admissionSearchSchema = z.object({
@@ -110,6 +126,7 @@ export const createAdmission = async (req: AuthRequest, res: Response) => {
     // Start transaction
     const result = await prisma.$transaction(async (tx) => {
       // Create admission
+      const isDayCare = validatedData.admissionType === 'DAY_CARE' || validatedData.isDayCare;
       const newAdmission = await tx.admission.create({
         data: {
           patientId: validatedData.patientId,
@@ -121,6 +138,14 @@ export const createAdmission = async (req: AuthRequest, res: Response) => {
           notes: validatedData.notes,
           status: 'ADMITTED',
           admittedBy: req.user!.id,
+          // Day care specific fields
+          isDayCare: isDayCare,
+          procedureStartTime: validatedData.procedureStartTime,
+          procedureEndTime: validatedData.procedureEndTime,
+          recoveryStartTime: validatedData.recoveryStartTime,
+          recoveryEndTime: validatedData.recoveryEndTime,
+          expectedDischargeTime: validatedData.expectedDischargeTime,
+          homeSupportAvailable: validatedData.homeSupportAvailable,
         },
         include: {
           patient: {
@@ -724,7 +749,19 @@ type ChargesPreview = {
   }
 }
 
-async function getWardTariffPerDay(wardType: string): Promise<number> {
+async function getWardTariffPerDay(wardId: string, wardType: string): Promise<number> {
+  // First, check if the ward has a specific dailyRate set
+  const ward = await prisma.ward.findUnique({
+    where: { id: wardId },
+    select: { dailyRate: true },
+  });
+  
+  // If ward has a dailyRate, use it
+  if (ward?.dailyRate) {
+    return ward.dailyRate.toNumber();
+  }
+  
+  // Otherwise, fall back to ward type defaults from hospital config
   const cfg = await prisma.hospitalConfig.findFirst();
   const modulesEnabled: any = cfg?.modulesEnabled || {};
   const ipdSettings = modulesEnabled.ipdSettings || {};
@@ -751,7 +788,7 @@ async function getChargesPreviewInternal(admissionId: string): Promise<ChargesPr
   const end = new Date();
   const ms = end.getTime() - start.getTime();
   const days = Math.max(1, Math.ceil(ms / (24 * 60 * 60 * 1000))); // charge full day blocks
-  const tariff = await getWardTariffPerDay(admission.ward.type);
+  const tariff = await getWardTariffPerDay(admission.wardId, admission.ward.type);
   const roomCharges = days * tariff;
 
   // Placeholders for now; can be wired to real data later

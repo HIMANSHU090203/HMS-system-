@@ -31,7 +31,12 @@ const AdmissionManagement = ({ onBack, isAuthenticated }) => {
     admissionDate: new Date().toISOString().split('T')[0],
     admissionType: 'EMERGENCY',
     admissionReason: '',
-    notes: ''
+    notes: '',
+    // Day care specific fields
+    isDayCare: false,
+    procedureStartTime: '',
+    expectedDischargeTime: '',
+    homeSupportAvailable: false
   });
 
   const [dischargeData, setDischargeData] = useState({
@@ -42,7 +47,8 @@ const AdmissionManagement = ({ onBack, isAuthenticated }) => {
     { value: 'EMERGENCY', label: 'Emergency Admission', icon: '🚨' },
     { value: 'PLANNED', label: 'Planned Admission', icon: '📅' },
     { value: 'TRANSFER', label: 'Transfer from Another Ward', icon: '🔄' },
-    { value: 'OBSERVATION', label: 'Observation', icon: '👁️' }
+    { value: 'OBSERVATION', label: 'Observation', icon: '👁️' },
+    { value: 'DAY_CARE', label: 'Day Care (Same-Day Surgery)', icon: '🏥' }
   ];
 
   const admissionStatuses = [
@@ -199,10 +205,13 @@ const AdmissionManagement = ({ onBack, isAuthenticated }) => {
   };
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: type === 'checkbox' ? checked : value,
+      // Auto-set isDayCare when DAY_CARE is selected
+      ...(name === 'admissionType' && value === 'DAY_CARE' ? { isDayCare: true } : {}),
+      ...(name === 'admissionType' && value !== 'DAY_CARE' ? { isDayCare: false } : {})
     }));
   };
 
@@ -251,6 +260,26 @@ const AdmissionManagement = ({ onBack, isAuthenticated }) => {
         admissionReason: formData.admissionReason?.substring(0, 50) + '...',
       });
       
+      // Day care validation
+      const isDayCare = formData.admissionType === 'DAY_CARE';
+      if (isDayCare) {
+        if (!formData.procedureStartTime) {
+          setError('❌ Please enter procedure start time for day care admission');
+          setLoading(false);
+          return;
+        }
+        if (!formData.expectedDischargeTime) {
+          setError('❌ Please enter expected discharge time for day care admission');
+          setLoading(false);
+          return;
+        }
+        if (!formData.homeSupportAvailable) {
+          setError('❌ Day care patients must have home support available');
+          setLoading(false);
+          return;
+        }
+      }
+
       const admissionData = {
         patientId: formData.patientId,
         wardId: formData.wardId,
@@ -258,7 +287,16 @@ const AdmissionManagement = ({ onBack, isAuthenticated }) => {
         admissionDate: formData.admissionDate,
         admissionType: formData.admissionType,
         admissionReason: formData.admissionReason.trim(),
-        notes: formData.notes?.trim() || undefined
+        notes: formData.notes?.trim() || undefined,
+        // Day care specific fields
+        isDayCare: isDayCare,
+        procedureStartTime: isDayCare && formData.procedureStartTime 
+          ? new Date(`${formData.admissionDate}T${formData.procedureStartTime}`).toISOString() 
+          : undefined,
+        expectedDischargeTime: isDayCare && formData.expectedDischargeTime 
+          ? new Date(`${formData.admissionDate}T${formData.expectedDischargeTime}`).toISOString() 
+          : undefined,
+        homeSupportAvailable: isDayCare ? formData.homeSupportAvailable : undefined
       };
 
       if (showEditForm && editingAdmission) {
@@ -289,7 +327,11 @@ const AdmissionManagement = ({ onBack, isAuthenticated }) => {
         admissionDate: new Date().toISOString().split('T')[0],
         admissionType: 'EMERGENCY',
         admissionReason: '',
-        notes: ''
+        notes: '',
+        isDayCare: false,
+        procedureStartTime: '',
+        expectedDischargeTime: '',
+        homeSupportAvailable: false
       });
 
     } catch (err) {
@@ -1375,6 +1417,132 @@ const AdmissionManagement = ({ onBack, isAuthenticated }) => {
               }
             })
           ),
+          // Day Care Specific Fields
+          formData.admissionType === 'DAY_CARE' && React.createElement(
+            'div',
+            {
+              style: {
+                marginBottom: '20px',
+                padding: '15px',
+                backgroundColor: '#f0f8ff',
+                borderRadius: '8px',
+                border: '1px solid #007bff'
+              }
+            },
+            React.createElement(
+              'h4',
+              { style: { margin: '0 0 15px 0', color: '#007bff', fontSize: '16px', fontWeight: 'bold' } },
+              '🏥 Day Care Admission Details'
+            ),
+            React.createElement(
+              'div',
+              {
+                style: {
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '15px',
+                  marginBottom: '15px'
+                }
+              },
+              React.createElement(
+                'div',
+                null,
+                React.createElement(
+                  'label',
+                  { style: { display: 'block', marginBottom: '5px', fontWeight: 'bold' } },
+                  'Procedure Start Time *'
+                ),
+                React.createElement('input', {
+                  type: 'time',
+                  name: 'procedureStartTime',
+                  required: formData.admissionType === 'DAY_CARE',
+                  value: formData.procedureStartTime,
+                  onChange: handleInputChange,
+                  style: {
+                    width: '100%',
+                    padding: '8px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    fontSize: '14px'
+                  }
+                })
+              ),
+              React.createElement(
+                'div',
+                null,
+                React.createElement(
+                  'label',
+                  { style: { display: 'block', marginBottom: '5px', fontWeight: 'bold' } },
+                  'Expected Discharge Time *'
+                ),
+                React.createElement('input', {
+                  type: 'time',
+                  name: 'expectedDischargeTime',
+                  required: formData.admissionType === 'DAY_CARE',
+                  value: formData.expectedDischargeTime,
+                  onChange: handleInputChange,
+                  style: {
+                    width: '100%',
+                    padding: '8px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    fontSize: '14px'
+                  }
+                })
+              )
+            ),
+            React.createElement(
+              'div',
+              { style: { marginBottom: '10px' } },
+              React.createElement(
+                'label',
+                {
+                  style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer'
+                  }
+                },
+                React.createElement('input', {
+                  type: 'checkbox',
+                  name: 'homeSupportAvailable',
+                  checked: formData.homeSupportAvailable,
+                  onChange: handleInputChange,
+                  required: formData.admissionType === 'DAY_CARE',
+                  style: {
+                    width: '18px',
+                    height: '18px',
+                    cursor: 'pointer'
+                  }
+                }),
+                React.createElement(
+                  'span',
+                  { style: { fontWeight: 'bold' } },
+                  'Home Support Available *'
+                )
+              ),
+              React.createElement(
+                'p',
+                { style: { margin: '5px 0 0 26px', fontSize: '12px', color: '#666' } },
+                'Patient has adequate home support for recovery (required for day care)'
+              )
+            ),
+            React.createElement(
+              'div',
+              {
+                style: {
+                  padding: '10px',
+                  backgroundColor: '#fff3cd',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  color: '#856404'
+                }
+              },
+              React.createElement('strong', null, 'Day Care Criteria: '),
+              'Patient must be medically stable, have adequate home support, and undergo low-risk procedures (6-12 hour duration).'
+            )
+          ),
           React.createElement(
             'div',
             {
@@ -1399,7 +1567,11 @@ const AdmissionManagement = ({ onBack, isAuthenticated }) => {
                     admissionDate: new Date().toISOString().split('T')[0],
                     admissionType: 'EMERGENCY',
                     admissionReason: '',
-                    notes: ''
+                    notes: '',
+                    isDayCare: false,
+                    procedureStartTime: '',
+                    expectedDischargeTime: '',
+                    homeSupportAvailable: false
                   });
                 },
                 style: {

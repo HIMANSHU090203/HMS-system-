@@ -77,6 +77,32 @@ class AdmissionService {
     const response = await apiClient.get<ApiResponse<AdmissionStats>>('/admissions/stats');
     return response.data.data;
   }
+
+  // Get charges preview for an admission
+  async getChargesPreview(admissionId: string): Promise<{
+    roomCharges: number;
+    procedureCharges: number;
+    medicineCharges: number;
+    labCharges: number;
+    otherCharges: number;
+    totalAmount: number;
+    details: {
+      wardType?: string;
+      tariffPerDay?: number;
+      daysCharged?: number;
+    };
+  }> {
+    const response = await apiClient.get<ApiResponse<{
+      roomCharges: number;
+      procedureCharges: number;
+      medicineCharges: number;
+      labCharges: number;
+      otherCharges: number;
+      totalAmount: number;
+      details: any;
+    }>>(`/admissions/${admissionId}/charges-preview`);
+    return response.data.data;
+  }
 }
 
 export default new AdmissionService();

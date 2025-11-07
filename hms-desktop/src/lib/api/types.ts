@@ -16,7 +16,8 @@ export enum WardType {
   MEDICAL = 'MEDICAL',
   MATERNITY = 'MATERNITY',
   PSYCHIATRIC = 'PSYCHIATRIC',
-  ONCOLOGY = 'ONCOLOGY'
+  ONCOLOGY = 'ONCOLOGY',
+  DAY_CARE = 'DAY_CARE'
 }
 
 export enum BedType {

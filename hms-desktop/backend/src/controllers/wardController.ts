@@ -12,6 +12,7 @@ const wardCreateSchema = z.object({
   capacity: z.number().int().min(1, 'Capacity must be at least 1').max(1000, 'Capacity too high'),
   description: z.string().max(500, 'Description too long').optional(),
   floor: z.string().max(50, 'Floor name too long').optional(),
+  dailyRate: z.number().min(0, 'Daily rate must be positive').optional(),
 });
 
 const wardUpdateSchema = z.object({
@@ -20,6 +21,7 @@ const wardUpdateSchema = z.object({
   capacity: z.number().int().min(1, 'Capacity must be at least 1').max(1000, 'Capacity too high').optional(),
   description: z.string().max(500, 'Description too long').optional(),
   floor: z.string().max(50, 'Floor name too long').optional(),
+  dailyRate: z.number().min(0, 'Daily rate must be positive').optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -61,6 +63,7 @@ export const createWard = async (req: AuthRequest, res: Response) => {
         'CARDIAC': 'ICU',
         'NEUROLOGY': 'GENERAL',
         'ORTHOPEDIC': 'GENERAL',
+        'DAY_CARE': 'GENERAL',
       };
       return wardTypeToBedType[wardType] || 'GENERAL';
     };
@@ -77,6 +80,7 @@ export const createWard = async (req: AuthRequest, res: Response) => {
           capacity: validatedData.capacity,
           description: validatedData.description,
           floor: validatedData.floor,
+          dailyRate: validatedData.dailyRate,
           currentOccupancy: 0,
           isActive: true,
         },

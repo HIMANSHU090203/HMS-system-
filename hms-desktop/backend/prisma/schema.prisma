@@ -454,6 +454,7 @@ model Ward {
   isActive        Boolean  @default(true) @map("is_active")
   description     String?
   floor           String?
+  dailyRate       Decimal? @db.Decimal(10,2) @map("daily_rate") // Daily charge per bed in this ward
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -499,6 +500,14 @@ model Admission {
   admittedBy      String          @map("admitted_by")
   dischargedBy    String?         @map("discharged_by")
   dischargeNotes  String?         @map("discharge_notes")
+  // Day care specific fields
+  isDayCare       Boolean         @default(false) @map("is_day_care")
+  procedureStartTime DateTime?    @map("procedure_start_time")
+  procedureEndTime   DateTime?    @map("procedure_end_time")
+  recoveryStartTime  DateTime?    @map("recovery_start_time")
+  recoveryEndTime    DateTime?    @map("recovery_end_time")
+  expectedDischargeTime DateTime? @map("expected_discharge_time")
+  homeSupportAvailable Boolean?   @map("home_support_available")
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
@@ -960,6 +969,7 @@ enum WardType {
   CARDIAC
   NEUROLOGY
   ORTHOPEDIC
+  DAY_CARE
 }
 
 enum BedType {
@@ -975,6 +985,7 @@ enum AdmissionType {
   PLANNED
   TRANSFER
   OBSERVATION
+  DAY_CARE
 }
 
 enum AdmissionStatus {
