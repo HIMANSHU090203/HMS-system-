@@ -10,6 +10,7 @@ import MedicineManagement from '../medicines/MedicineManagement';
 import BillingManagement from '../billing/BillingManagement';
 import UserManagement from '../users/UserManagement';
 import SystemConfig from '../config/SystemConfig';
+import { useHospitalConfig } from '../../lib/contexts/HospitalConfigContext';
 
 const Dashboard = ({ user, onLogout }) => {
   const [activeModule, setActiveModule] = useState('dashboard');
@@ -82,6 +83,7 @@ const Dashboard = ({ user, onLogout }) => {
 
 // Dashboard Overview Component
 const DashboardOverview = ({ user }) => {
+  const { hospitalName } = useHospitalConfig();
   return React.createElement(
     'div',
     { className: 'space-y-6' },
@@ -91,7 +93,7 @@ const DashboardOverview = ({ user }) => {
       React.createElement(
         'h1',
         { className: 'text-2xl font-bold text-gray-900 mb-4' },
-        '🏥 Hospital Management System'
+        `🏥 ${hospitalName}`
       ),
       React.createElement(
         'p',

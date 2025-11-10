@@ -3,6 +3,7 @@ import { config } from '../config/environment';
 import authService from '../lib/api/services/authService';
 import configService from '../lib/api/services/configService';
 import { hasModuleAccess } from '../lib/utils/rolePermissions';
+import { HospitalConfigProvider } from '../lib/contexts/HospitalConfigContext';
 import LoginForm from './auth/LoginForm';
 import RoleBasedDashboard from './dashboard/RoleBasedDashboard';
 import PatientManagement from './patients/PatientManagement';
@@ -576,7 +577,7 @@ const App = () => {
     React.createElement(
       'div',
       { style: { textAlign: 'center' } },
-      React.createElement('h1', { style: { fontSize: '24px', marginBottom: '10px', color: '#333' } }, 'HMS - Hospital Management System'),
+      React.createElement('h1', { style: { fontSize: '24px', marginBottom: '10px', color: '#333' } }, 'HMS - Initializing...'),
       React.createElement('p', { style: { color: '#666' } }, 'Initializing application...')
     )
   );

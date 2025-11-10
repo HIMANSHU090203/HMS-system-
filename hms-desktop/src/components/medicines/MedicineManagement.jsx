@@ -4,8 +4,10 @@ import InfoButton from '../common/InfoButton';
 import { getInfoContent } from '../../lib/infoContent';
 import OrderManagement from './OrderManagement';
 import ImportCatalogWizard from './ImportCatalogWizard';
+import { useHospitalConfig } from '../../lib/contexts/HospitalConfigContext';
 
 const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
+  const { formatCurrency } = useHospitalConfig();
   const [medicines, setMedicines] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -474,8 +476,8 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                   React.createElement('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' }, medicine.category || '-'),
                   React.createElement('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' }, 
                     medicine.sellingPrice 
-                      ? `$${parseFloat(medicine.sellingPrice).toFixed(2)}`
-                      : `$${parseFloat(medicine.price || 0).toFixed(2)}`
+                      ? formatCurrency(parseFloat(medicine.sellingPrice || 0))
+                      : formatCurrency(parseFloat(medicine.price || 0))
                   ),
                   React.createElement('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' }, medicine.stockQuantity || medicine.quantity || 0),
                   React.createElement(
@@ -767,7 +769,7 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
           'div',
           { className: 'bg-white rounded-lg shadow p-6' },
           React.createElement('div', { className: 'text-sm font-medium text-gray-500 mb-1' }, 'Total Inventory Value'),
-          React.createElement('div', { className: 'text-2xl font-bold text-green-600' }, `$${parseFloat(stats.totalInventoryValue || 0).toFixed(2)}`)
+          React.createElement('div', { className: 'text-2xl font-bold text-green-600' }, formatCurrency(parseFloat(stats.totalInventoryValue || 0)))
         ),
         React.createElement(
           'div',
@@ -823,7 +825,7 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                 React.createElement('td', { className: 'px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900' }, medicine.name),
                 React.createElement('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-red-600 font-semibold' }, medicine.quantity),
                 React.createElement('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' }, medicine.lowStockThreshold),
-                React.createElement('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' }, `$${parseFloat(medicine.price || 0).toFixed(2)}`),
+                React.createElement('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' }, formatCurrency(parseFloat(medicine.price || 0))),
                 React.createElement(
                   'td',
                   { className: 'px-6 py-4 whitespace-nowrap text-sm font-medium' },

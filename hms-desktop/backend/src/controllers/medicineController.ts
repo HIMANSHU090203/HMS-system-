@@ -1124,3 +1124,52 @@ export const createSupplier = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+// Get medicine order by ID (for invoice generation)
+export const getMedicineOrderById = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const order = await prisma.medicineOrder.findUnique({
+      where: { id },
+      include: {
+        supplier: true,
+        orderItems: {
+          include: {
+            medicine: {
+              select: {
+                name: true,
+                manufacturer: true
+              }
+            }
+          }
+        },
+        createdByUser: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Medicine order not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: order
+    });
+  } catch (error) {
+    console.error('Get medicine order by ID error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching medicine order'
+    });
+  }
+};

@@ -15,6 +15,7 @@ import {
   importMedicineCatalog,
   createMedicineOrder,
   getMedicineOrders,
+  getMedicineOrderById,
   updateOrderStatus,
   uploadInvoiceFile,
   getSuppliers,
@@ -41,6 +42,7 @@ router.delete('/:id', requireRole(UserRole.ADMIN, UserRole.PHARMACY), deleteMedi
 router.post('/import', requireRole(UserRole.ADMIN, UserRole.PHARMACY), upload.single('file'), importMedicineCatalog);
 router.post('/orders', requireRole(UserRole.ADMIN, UserRole.PHARMACY), createMedicineOrder);
 router.get('/orders', requireRole(UserRole.ADMIN, UserRole.PHARMACY), getMedicineOrders);
+router.get('/orders/:id', requireRole(UserRole.ADMIN, UserRole.PHARMACY), getMedicineOrderById);
 router.put('/orders/:id/status', requireRole(UserRole.ADMIN, UserRole.PHARMACY), updateOrderStatus);
 router.post('/orders/:orderId/invoice', requireRole(UserRole.ADMIN, UserRole.PHARMACY), upload.single('invoice'), uploadInvoiceFile);
 

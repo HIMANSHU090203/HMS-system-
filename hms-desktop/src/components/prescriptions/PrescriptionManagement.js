@@ -14,11 +14,12 @@ import PrescriptionPDFGenerator from '../../lib/utils/prescriptionPDFGenerator';
 import AuditLogs from '../common/AuditLogs';
 import InfoButton from '../common/InfoButton';
 import { getInfoContent } from '../../lib/infoContent';
+import { useHospitalConfig } from '../../lib/contexts/HospitalConfigContext';
 
 const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
+  const { formatCurrency: formatCurrencyUtil, config: hospitalConfig } = useHospitalConfig();
   const [activeTab, setActiveTab] = useState('list'); // 'list', 'stats'
   const [prescriptions, setPrescriptions] = useState([]);
-  const [hospitalConfig, setHospitalConfig] = useState({ currency: 'USD' });
   const [patients, setPatients] = useState([]);
   const [medicines, setMedicines] = useState([]);
   const [doctors, setDoctors] = useState([]);
@@ -62,18 +63,7 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
     }
   }, [isAuthenticated, currentPage, searchTerm, statusFilter, activeTab]);
 
-  // Load hospital config for currency
-  useEffect(() => {
-    const loadConfig = async () => {
-      try {
-        const data = await configService.getHospitalConfig();
-        setHospitalConfig(data.config || { currency: 'USD' });
-      } catch (error) {
-        console.error('Failed to load hospital config:', error);
-      }
-    };
-    loadConfig();
-  }, []);
+  // Hospital config is now provided by HospitalConfigContext
 
   const loadData = async () => {
     setLoading(true);
@@ -419,13 +409,9 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
     try {
       setLoading(true);
       // Fetch prescription, hospital config, and patient consultation history in parallel
-      const [prescriptionResponse, configResponse] = await Promise.all([
-        prescriptionService.getPrescriptionById(prescriptionId),
-        configService.getHospitalConfig()
-      ]);
-      
+      const prescriptionResponse = await prescriptionService.getPrescriptionById(prescriptionId);
       const prescription = prescriptionResponse.prescription;
-      const hospitalConfig = configResponse.config || {};
+      // hospitalConfig is now provided by HospitalConfigContext
       const patientId = prescription.patient?.id;
       
       // Fetch patient consultation history (excluding current consultation if linked)
@@ -521,13 +507,14 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
         medicine: item.medicine || item.medicineCatalog || {}
       }));
 
-      // Build hospital address from config
+      // Build hospital address from config (with fallback)
+      const config = hospitalConfig || {};
       const addressParts = [
-        hospitalConfig.address,
-        hospitalConfig.city,
-        hospitalConfig.state,
-        hospitalConfig.postalCode,
-        hospitalConfig.country
+        config.address,
+        config.city,
+        config.state,
+        config.postalCode,
+        config.country
       ].filter(Boolean);
       const hospitalAddress = addressParts.length > 0 ? addressParts.join(', ') : 'Address not specified';
 
@@ -557,12 +544,12 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
         status: prescription.status || 'ACTIVE',
         totalAmount: prescription.totalAmount || 0,
         createdAt: prescription.createdAt || new Date().toISOString(),
-        // Use hospital config from database
-        hospitalName: hospitalConfig.hospitalName || 'Hospital Management System',
+        // Use hospital config from context (with fallback)
+        hospitalName: config.hospitalName || 'Hospital Management System',
         hospitalAddress: hospitalAddress,
-        hospitalPhone: hospitalConfig.phone || 'N/A',
-        hospitalEmail: hospitalConfig.email || 'N/A',
-        workingHours: hospitalConfig.workingHours || null,
+        hospitalPhone: config.phone || 'N/A',
+        hospitalEmail: config.email || 'N/A',
+        workingHours: config.workingHours || null,
         // Include consultation data if available
         consultation: prescription.consultation || null,
         // Temperature and BP from consultation (now available for OPD patients)
@@ -662,17 +649,7 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
     return new Date(dateString).toLocaleDateString();
   };
 
-  const formatCurrency = (amount) => {
-    const currency = hospitalConfig.currency || 'USD';
-    try {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: currency,
-      }).format(amount);
-    } catch (error) {
-      return `${currency} ${parseFloat(amount).toFixed(2)}`;
-    }
-  };
+  // formatCurrency is now provided by useHospitalConfig as formatCurrencyUtil
 
   const renderPrescriptionList = () => (
     React.createElement(
@@ -803,7 +780,7 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
                 React.createElement(
                   'td',
                   { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' },
-                  formatCurrency(Number(prescription.totalAmount))
+                  formatCurrencyUtil(Number(prescription.totalAmount))
                 ),
                 React.createElement(
                   'td',
@@ -1497,7 +1474,7 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
           React.createElement(
             'p',
             { className: 'text-3xl font-bold text-green-600' },
-            formatCurrency(Number(stats.totalRevenue) || 0)
+            formatCurrencyUtil(Number(stats.totalRevenue) || 0)
           )
         )
       )

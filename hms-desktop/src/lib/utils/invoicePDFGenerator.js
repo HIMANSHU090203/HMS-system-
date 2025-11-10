@@ -1,6 +1,8 @@
 // Professional Invoice PDF Generator - Apollo Hospitals Style
 // Supports both OPD billing and IPD billing formats
 
+import generateInvoiceFooter from './invoiceFooterGenerator';
+
 // Convert number to words (Indian numbering system)
 function numberToWords(amount) {
   const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
@@ -131,7 +133,7 @@ const InvoicePDFGenerator = {
     const hospitalConfig = invoiceData.hospitalConfig || {};
     const currency = hospitalConfig.currency || 'USD';
     const patient = invoiceData.patient || {};
-    const items = invoiceData.items || [];
+    const items = invoiceData.items || {};
     
     // Build hospital address
     const addressParts = [
@@ -149,16 +151,56 @@ const InvoicePDFGenerator = {
     const tax = invoiceData.tax || 0;
     const totalAmount = invoiceData.totalAmount || 0;
     
-    // Build services table rows
-    const servicesRows = items.map((item, index) => {
-      const amount = (item.quantity || 1) * (item.unitPrice || item.price || 0);
+    // Build services table rows - Section-wise
+    const buildSectionRows = (sectionName, sectionData) => {
+      if (!sectionData || !sectionData.items || sectionData.items.length === 0) return '';
+      
+      const sectionTitle = sectionName === 'consultation' ? 'Consultation Fees' :
+                          sectionName === 'pharmacy' ? 'Pharmacy (Medicines)' :
+                          sectionName === 'labTests' ? 'Laboratory Tests' :
+                          'Other Charges';
+      
+      const rows = sectionData.items.map(item => `
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; font-size: 10pt; padding-left: 20px;">${item.description || 'Item'}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right; font-size: 10pt;">${formatCurrency(item.amount || 0, currency)}</td>
+        </tr>
+      `).join('');
+      
       return `
         <tr>
-          <td style="padding: 8px; border-bottom: 1px solid #ddd; font-size: 10pt;">${item.description || item.name || 'Service'}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right; font-size: 10pt;">${formatCurrency(amount, currency)}</td>
+          <td colspan="2" style="padding: 10px 8px 6px 8px; background-color: #f5f5f5; font-weight: bold; font-size: 10pt; border-bottom: 1px solid #000;">${sectionTitle}</td>
+        </tr>
+        ${rows}
+        <tr>
+          <td style="padding: 8px; text-align: right; font-weight: bold; font-size: 10pt; border-bottom: 2px solid #ccc;">Section Subtotal:</td>
+          <td style="padding: 8px; text-align: right; font-weight: bold; font-size: 10pt; border-bottom: 2px solid #ccc;">${formatCurrency(sectionData.subtotal || 0, currency)}</td>
         </tr>
       `;
-    }).join('');
+    };
+    
+    // Check if items is in new section-wise format or old array format
+    let servicesRows = '';
+    if (Array.isArray(items)) {
+      // Old format - backward compatibility
+      servicesRows = items.map((item, index) => {
+        const amount = (item.quantity || 1) * (item.unitPrice || item.price || 0);
+        return `
+          <tr>
+            <td style="padding: 8px; border-bottom: 1px solid #ddd; font-size: 10pt;">${item.description || item.name || 'Service'}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right; font-size: 10pt;">${formatCurrency(amount, currency)}</td>
+          </tr>
+        `;
+      }).join('');
+    } else {
+      // New section-wise format
+      servicesRows = [
+        buildSectionRows('consultation', items.consultation),
+        buildSectionRows('pharmacy', items.pharmacy),
+        buildSectionRows('labTests', items.labTests),
+        buildSectionRows('other', items.other)
+      ].join('');
+    }
     
     const htmlContent = `
       <!DOCTYPE html>
@@ -489,12 +531,15 @@ const InvoicePDFGenerator = {
             ` : ''}
           </div>
 
-          ${hospitalConfig.footerText ? `
-            <!-- Invoice Footer Text -->
-            <div class="footer-text" style="margin-top: 8mm; padding: 4mm; font-size: 9pt; color: #333; line-height: 1.6; border-top: 1px solid #ddd; white-space: pre-wrap;">
-              ${hospitalConfig.footerText}
-            </div>
-          ` : ''}
+          ${(() => {
+            const footerText = generateInvoiceFooter(hospitalConfig);
+            return footerText ? `
+              <!-- Invoice Footer Text -->
+              <div class="footer-text" style="margin-top: 8mm; padding: 4mm; font-size: 9pt; color: #333; line-height: 1.6; border-top: 1px solid #ddd; white-space: pre-wrap; font-family: monospace;">
+                ${footerText}
+              </div>
+            ` : '';
+          })()}
 
           <!-- Footer -->
           <div class="footer">
@@ -893,12 +938,15 @@ const InvoicePDFGenerator = {
             ` : ''}
           </div>
 
-          ${hospitalConfig.footerText ? `
-            <!-- Invoice Footer Text -->
-            <div class="footer-text" style="margin-top: 8mm; padding: 4mm; font-size: 9pt; color: #333; line-height: 1.6; border-top: 1px solid #ddd; white-space: pre-wrap;">
-              ${hospitalConfig.footerText}
-            </div>
-          ` : ''}
+          ${(() => {
+            const footerText = generateInvoiceFooter(hospitalConfig);
+            return footerText ? `
+              <!-- Invoice Footer Text -->
+              <div class="footer-text" style="margin-top: 8mm; padding: 4mm; font-size: 9pt; color: #333; line-height: 1.6; border-top: 1px solid #ddd; white-space: pre-wrap; font-family: monospace;">
+                ${footerText}
+              </div>
+            ` : '';
+          })()}
 
           <!-- Footer -->
           <div class="footer">
@@ -914,6 +962,399 @@ const InvoicePDFGenerator = {
             };
           };
         </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  },
+
+  // Generate Purchase Order / Medicine Stock Order Invoice PDF
+  generatePurchaseOrderPDF: (orderData) => {
+    const printWindow = window.open('', '_blank');
+    
+    const hospitalConfig = orderData.hospitalConfig || {};
+    const currency = hospitalConfig.currency || 'USD';
+    const supplier = orderData.supplier || {};
+    const orderItems = orderData.orderItems || [];
+    
+    // Build hospital address
+    const addressParts = [
+      hospitalConfig.address,
+      hospitalConfig.city,
+      hospitalConfig.state,
+      hospitalConfig.postalCode,
+      hospitalConfig.country
+    ].filter(Boolean);
+    const hospitalAddress = addressParts.length > 0 ? addressParts.join(', ') : 'Address not specified';
+    
+    // Build supplier address
+    const supplierAddressParts = [
+      supplier.address,
+      supplier.city,
+      supplier.state,
+      supplier.postalCode,
+      supplier.country
+    ].filter(Boolean);
+    const supplierAddress = supplierAddressParts.length > 0 ? supplierAddressParts.join(', ') : 'Address not specified';
+    
+    // Calculate totals
+    const subtotal = orderData.totalAmount || 0;
+    const taxAmount = orderData.taxAmount || 0;
+    const totalAmount = subtotal + taxAmount;
+    
+    // Build order items rows
+    const itemsRows = orderItems.map((item, index) => `
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center; font-size: 10pt;">${index + 1}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; font-size: 10pt;">${item.medicine?.name || item.medicineName || 'N/A'}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center; font-size: 10pt;">${item.quantity || 0}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right; font-size: 10pt;">${formatCurrency(item.unitPrice || 0, currency)}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right; font-size: 10pt;">${formatCurrency(item.totalPrice || 0, currency)}</td>
+      </tr>
+    `).join('');
+    
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Purchase Order - ${orderData.orderNumber || 'N/A'}</title>
+        <meta charset="utf-8" />
+        <style>
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 15mm;
+            background: white;
+            font-size: 10pt;
+            line-height: 1.4;
+          }
+          .purchase-order-page {
+            width: 100%;
+            max-width: 210mm;
+            margin: 0 auto;
+          }
+          .header-section {
+            margin-bottom: 8mm;
+          }
+          .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 5mm;
+          }
+          .hospital-branding {
+            flex: 1;
+          }
+          .hospital-name {
+            font-size: 24pt;
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 2mm;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+          }
+          .hospital-tagline {
+            font-size: 9pt;
+            color: #666;
+            margin-bottom: 3mm;
+          }
+          .hospital-address {
+            font-size: 9pt;
+            color: #333;
+            line-height: 1.6;
+            margin-bottom: 2mm;
+          }
+          .hospital-contact {
+            font-size: 9pt;
+            color: #333;
+            line-height: 1.6;
+          }
+          .po-title {
+            text-align: center;
+            font-size: 18pt;
+            font-weight: bold;
+            margin: 5mm 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            background-color: #0066cc;
+            color: white;
+            padding: 5mm;
+          }
+          .details-section {
+            border: 1px solid #000;
+            padding: 5mm;
+            margin-bottom: 5mm;
+            display: flex;
+            gap: 10mm;
+          }
+          .supplier-details {
+            flex: 1;
+          }
+          .order-details {
+            flex: 1;
+          }
+          .details-header {
+            font-weight: bold;
+            font-size: 11pt;
+            margin-bottom: 3mm;
+            text-transform: uppercase;
+            border-bottom: 1px solid #000;
+            padding-bottom: 2mm;
+          }
+          .detail-row {
+            margin-bottom: 2mm;
+            font-size: 10pt;
+          }
+          .detail-label {
+            font-weight: bold;
+            display: inline-block;
+            min-width: 120px;
+          }
+          .items-section {
+            margin-bottom: 5mm;
+          }
+          .items-header {
+            font-weight: bold;
+            font-size: 11pt;
+            margin-bottom: 3mm;
+            text-transform: uppercase;
+          }
+          .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #000;
+          }
+          .items-table th {
+            background-color: #f0f0f0;
+            padding: 8px;
+            text-align: left;
+            font-weight: bold;
+            font-size: 10pt;
+            border-bottom: 2px solid #000;
+          }
+          .items-table td {
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+            font-size: 10pt;
+          }
+          .financial-summary {
+            margin-top: 5mm;
+            display: flex;
+            justify-content: flex-end;
+          }
+          .totals-box {
+            min-width: 250px;
+            border: 2px solid #000;
+          }
+          .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 10px;
+            border-bottom: 1px solid #ccc;
+            font-size: 10pt;
+          }
+          .total-row:last-child {
+            border-bottom: none;
+            background-color: #f0f0f0;
+            font-weight: bold;
+            font-size: 12pt;
+          }
+          .amount-in-words {
+            margin-top: 5mm;
+            font-size: 10pt;
+            font-style: italic;
+            color: #333;
+            padding: 3mm;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+          }
+          .terms-section {
+            margin-top: 8mm;
+            padding-top: 5mm;
+            border-top: 1px solid #ddd;
+            font-size: 9pt;
+            color: #333;
+            line-height: 1.6;
+          }
+          .terms-header {
+            font-weight: bold;
+            font-size: 10pt;
+            margin-bottom: 3mm;
+          }
+          .term-item {
+            margin-bottom: 2mm;
+            padding-left: 5mm;
+          }
+          .signature-section {
+            margin-top: 10mm;
+            display: flex;
+            justify-content: space-between;
+          }
+          .signature-box {
+            text-align: center;
+            padding-top: 10mm;
+            border-top: 1px solid #000;
+            min-width: 150px;
+          }
+          @media print {
+            body {
+              margin: 0;
+              padding: 5mm;
+            }
+            @page {
+              size: A4;
+              margin: 0;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="purchase-order-page">
+          <!-- Header Section -->
+          <div class="header-section">
+            <div class="header-top">
+              <div class="hospital-branding">
+                <div class="hospital-name">${hospitalConfig.hospitalName || 'HOSPITAL MANAGEMENT SYSTEM'}</div>
+                ${hospitalConfig.tagline ? `<div class="hospital-tagline">${hospitalConfig.tagline}</div>` : ''}
+                <div class="hospital-address">${hospitalAddress}</div>
+                <div class="hospital-contact">
+                  ${hospitalConfig.phone ? `Phone: ${hospitalConfig.phone}` : ''}
+                  ${hospitalConfig.email ? `<br>Email: ${hospitalConfig.email}` : ''}
+                </div>
+              </div>
+            </div>
+            <div class="po-title">PURCHASE ORDER</div>
+          </div>
+
+          <!-- Supplier and Order Details Section -->
+          <div class="details-section">
+            <div class="supplier-details">
+              <div class="details-header">SUPPLIER DETAILS</div>
+              <div class="detail-row">
+                <span class="detail-label">Supplier Name:</span> ${supplier.name || 'N/A'}
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Contact Person:</span> ${supplier.contactPerson || 'N/A'}
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Phone:</span> ${supplier.phone || 'N/A'}
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Email:</span> ${supplier.email || 'N/A'}
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Address:</span> ${supplierAddress}
+              </div>
+            </div>
+            <div class="order-details">
+              <div class="details-header">ORDER INFORMATION</div>
+              <div class="detail-row">
+                <span class="detail-label">PO Number:</span> ${orderData.orderNumber || 'N/A'}
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Order Date:</span> ${formatDate(orderData.orderDate)}
+              </div>
+              ${orderData.expectedDelivery ? `
+                <div class="detail-row">
+                  <span class="detail-label">Expected Delivery:</span> ${formatDate(orderData.expectedDelivery)}
+                </div>
+              ` : ''}
+              <div class="detail-row">
+                <span class="detail-label">Status:</span> ${orderData.status || 'PENDING'}
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Payment Status:</span> ${orderData.paymentStatus || 'PENDING'}
+              </div>
+            </div>
+          </div>
+
+          <!-- Order Items Section -->
+          <div class="items-section">
+            <div class="items-header">ORDER ITEMS</div>
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th style="width: 5%; text-align: center;">#</th>
+                  <th style="width: 45%;">Medicine Name</th>
+                  <th style="width: 15%; text-align: center;">Quantity</th>
+                  <th style="width: 17.5%; text-align: right;">Unit Price</th>
+                  <th style="width: 17.5%; text-align: right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsRows}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Financial Summary -->
+          <div class="financial-summary">
+            <div class="totals-box">
+              <div class="total-row">
+                <span>Subtotal:</span>
+                <span>${formatCurrency(subtotal, currency)}</span>
+              </div>
+              ${taxAmount > 0 ? `
+                <div class="total-row">
+                  <span>Tax (${orderData.taxRate || 0}%):</span>
+                  <span>${formatCurrency(taxAmount, currency)}</span>
+                </div>
+              ` : ''}
+              <div class="total-row">
+                <span>TOTAL AMOUNT:</span>
+                <span>${formatCurrency(totalAmount, currency)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="amount-in-words">
+            <strong>Amount in Words:</strong> ${numberToWords(totalAmount)}
+          </div>
+
+          <!-- Terms and Conditions -->
+          <div class="terms-section">
+            <div class="terms-header">TERMS & CONDITIONS:</div>
+            <div class="term-item">1. All medicines must be delivered within the specified delivery date.</div>
+            <div class="term-item">2. Medicines must have a minimum of 12 months shelf life from the date of delivery.</div>
+            <div class="term-item">3. Quality certificates and batch details must be provided for all items.</div>
+            <div class="term-item">4. Payment will be processed within 30 days of successful delivery and verification.</div>
+            <div class="term-item">5. Any discrepancies must be reported within 48 hours of delivery.</div>
+            ${orderData.notes ? `
+              <div style="margin-top: 3mm; padding-top: 3mm; border-top: 1px solid #ccc;">
+                <strong>Additional Notes:</strong> ${orderData.notes}
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Signature Section -->
+          <div class="signature-section">
+            <div class="signature-box">
+              <div>Prepared By</div>
+              <div style="margin-top: 2mm; font-size: 9pt;">${orderData.createdByUser?.fullName || 'N/A'}</div>
+            </div>
+            <div class="signature-box">
+              <div>Approved By</div>
+              <div style="margin-top: 2mm; font-size: 9pt;">________________________</div>
+            </div>
+          </div>
+
+          ${(() => {
+            const footerText = generateInvoiceFooter(hospitalConfig);
+            return footerText ? `
+              <!-- Invoice Footer Text -->
+              <div class="footer-text" style="margin-top: 8mm; padding: 4mm; font-size: 9pt; color: #333; line-height: 1.6; border-top: 1px solid #ddd; white-space: pre-wrap; font-family: monospace;">
+                ${footerText}
+              </div>
+            ` : '';
+          })()}
+        </div>
       </body>
       </html>
     `;

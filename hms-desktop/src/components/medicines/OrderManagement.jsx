@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import medicineService from '../../lib/api/services/medicineService';
+import { useHospitalConfig } from '../../lib/contexts/HospitalConfigContext';
 
 const OrderManagement = ({ onBack }) => {
+  const { formatCurrency, formatDate: formatDateUtil } = useHospitalConfig();
   const [activeTab, setActiveTab] = useState('orders'); // 'orders', 'new-order', 'suppliers'
   const [orders, setOrders] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -167,7 +169,7 @@ const OrderManagement = ({ onBack }) => {
       if (order) {
         // Show order details in a modal or alert
         const itemsList = order.orderItems?.map((item, idx) => 
-          `  ${idx + 1}. ${item.medicine?.name || 'Medicine'} - Qty: ${item.quantity} - Price: ₹${item.unitPrice || 0}`
+          `  ${idx + 1}. ${item.medicine?.name || 'Medicine'} - Qty: ${item.quantity} - Price: ${formatCurrency(item.unitPrice || 0)}`
         ).join('\n') || 'No items';
         
         const orderDetails = `
@@ -176,9 +178,9 @@ Order Details:
 Order Number: ${order.orderNumber || 'N/A'}
 Supplier: ${order.supplier?.name || 'N/A'}
 Status: ${order.status || 'N/A'}
-Total Amount: ₹${order.totalAmount || 0}
-Order Date: ${formatDate(order.orderDate)}
-Expected Delivery: ${order.expectedDelivery ? formatDate(order.expectedDelivery) : 'N/A'}
+Total Amount: ${formatCurrency(order.totalAmount || 0)}
+Order Date: ${formatDateUtil(order.orderDate)}
+Expected Delivery: ${order.expectedDelivery ? formatDateUtil(order.expectedDelivery) : 'N/A'}
 Notes: ${order.notes || 'None'}
 
 Order Items:
@@ -255,10 +257,6 @@ ${itemsList}
     }
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString();
-  };
-
   const getStatusColor = (status) => {
     const colors = {
       PENDING: 'bg-yellow-100 text-yellow-800',
@@ -330,7 +328,7 @@ ${itemsList}
                 React.createElement(
                   'td',
                   { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' },
-                  formatDate(order.orderDate)
+                  formatDateUtil(order.orderDate)
                 ),
                 React.createElement(
                   'td',
@@ -344,7 +342,7 @@ ${itemsList}
                 React.createElement(
                   'td',
                   { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' },
-                  `₹${order.totalAmount}`
+                  formatCurrency(order.totalAmount || 0)
                 ),
                 React.createElement(
                   'td',

@@ -6,15 +6,37 @@ import { createAuditLog } from '../utils/auditLogger';
 
 const prisma = new PrismaClient();
 
+// Item schema for section-wise billing
+const billItemSchema = z.object({
+  description: z.string().min(1),
+  quantity: z.number().positive(),
+  unitPrice: z.number().positive(),
+  amount: z.number().positive(),
+  medicineId: z.string().optional(),
+  testId: z.string().optional(),
+});
+
 // Validation schemas
 const createBillSchema = z.object({
   patientId: z.string().uuid(),
-  items: z.array(z.object({
-    description: z.string().min(1),
-    quantity: z.number().positive(),
-    unitPrice: z.number().positive(),
-    category: z.enum(['CONSULTATION', 'MEDICINE', 'LAB_TEST', 'PROCEDURE', 'OTHER']),
-  })).min(1),
+  items: z.object({
+    consultation: z.object({
+      items: z.array(billItemSchema).optional().default([]),
+      subtotal: z.number().optional().default(0),
+    }).optional().default({ items: [], subtotal: 0 }),
+    pharmacy: z.object({
+      items: z.array(billItemSchema).optional().default([]),
+      subtotal: z.number().optional().default(0),
+    }).optional().default({ items: [], subtotal: 0 }),
+    labTests: z.object({
+      items: z.array(billItemSchema).optional().default([]),
+      subtotal: z.number().optional().default(0),
+    }).optional().default({ items: [], subtotal: 0 }),
+    other: z.object({
+      items: z.array(billItemSchema).optional().default([]),
+      subtotal: z.number().optional().default(0),
+    }).optional().default({ items: [], subtotal: 0 }),
+  }),
   paymentMode: z.enum(['CASH', 'CARD', 'UPI', 'NET_BANKING', 'INSURANCE']).optional().default('CASH'),
 });
 
@@ -87,10 +109,29 @@ export const createBill = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Calculate totals
-    const subtotal = validatedData.items.reduce((sum, item) => {
-      return sum + (item.quantity * item.unitPrice);
-    }, 0);
+    // Calculate section subtotals
+    const sections = validatedData.items;
+    
+    // Calculate subtotal for each section
+    sections.consultation.subtotal = sections.consultation.items.reduce(
+      (sum, item) => sum + item.amount, 0
+    );
+    sections.pharmacy.subtotal = sections.pharmacy.items.reduce(
+      (sum, item) => sum + item.amount, 0
+    );
+    sections.labTests.subtotal = sections.labTests.items.reduce(
+      (sum, item) => sum + item.amount, 0
+    );
+    sections.other.subtotal = sections.other.items.reduce(
+      (sum, item) => sum + item.amount, 0
+    );
+
+    // Calculate total
+    const subtotal = 
+      sections.consultation.subtotal +
+      sections.pharmacy.subtotal +
+      sections.labTests.subtotal +
+      sections.other.subtotal;
 
     const tax = 0; // Simple implementation - no tax for now
     const totalAmount = subtotal + tax;
@@ -104,7 +145,7 @@ export const createBill = async (req: AuthRequest, res: Response) => {
         patientId: validatedData.patientId,
         receptionistId: userId,
         invoiceNumber,
-        items: validatedData.items,
+        items: sections as any, // Store section-wise items
         subtotal,
         tax,
         totalAmount,
