@@ -1,8 +1,11 @@
 import { Response } from 'express';
+import { logAudit } from '../utils/auditLogger';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
 import { FileParserService } from '../services/fileParserService';
+import { getRequiredHospitalId } from '../utils/hospitalHelper';
+import { getHospitalCurrencies, convertCurrency } from '../services/currencyService';
 import fs from 'fs';
 
 const prisma = new PrismaClient();
@@ -72,10 +75,10 @@ export const createMedicine = async (req: AuthRequest, res: Response) => {
 
     // Generate unique code for medicine
     const code = `MED${Date.now().toString().slice(-8)}`;
-    
+
     // Check if medicine already exists
     const existingMedicine = await prisma.medicineCatalog.findFirst({
-      where: { 
+      where: {
         OR: [
           { name: validatedData.name },
           { code: code }
@@ -109,14 +112,12 @@ export const createMedicine = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'CREATE_MEDICINE',
-        tableName: 'medicines',
-        recordId: medicine.id,
-        newValue: medicine,
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'CREATE_MEDICINE',
+      tableName: 'medicines',
+      recordId: medicine.id,
+      newValue: medicine,
     });
 
     res.status(201).json({
@@ -132,7 +133,7 @@ export const createMedicine = async (req: AuthRequest, res: Response) => {
         errors: error.issues,
       });
     }
-    
+
     console.error('Create medicine error:', error);
     res.status(500).json({
       success: false,
@@ -145,14 +146,14 @@ export const createMedicine = async (req: AuthRequest, res: Response) => {
 export const getMedicines = async (req: AuthRequest, res: Response) => {
   try {
     const { search, lowStock, page = 1, limit = 20 } = medicineSearchSchema.parse(req.query);
-    
+
     const skip = (page - 1) * limit;
-    
+
     // Build where clause
     const where: any = {
       isActive: true, // Only get active medicines
     };
-    
+
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -160,7 +161,7 @@ export const getMedicines = async (req: AuthRequest, res: Response) => {
         { code: { contains: search, mode: 'insensitive' } },
       ];
     }
-    
+
     // Get all medicines first (needed for lowStock filtering)
     let medicines = await prisma.medicineCatalog.findMany({
       where,
@@ -177,21 +178,21 @@ export const getMedicines = async (req: AuthRequest, res: Response) => {
 
     // Get total count after filtering
     const total = medicines.length;
-    
+
     // Apply pagination
     const paginatedMedicines = medicines.slice(skip, skip + limit);
 
     // Get hospital config for markup percentage
     const hospitalConfig = await prisma.hospitalConfig.findFirst();
     const markupPercentage = hospitalConfig?.medicineMarkupPercentage ? Number(hospitalConfig.medicineMarkupPercentage) : 0;
-    
+
     // Add stock status and apply markup to prices
     const medicinesWithStatus = paginatedMedicines.map(medicine => {
       const basePrice = Number(medicine.price);
-      const sellingPrice = markupPercentage > 0 
+      const sellingPrice = markupPercentage > 0
         ? basePrice * (1 + markupPercentage / 100)
         : basePrice;
-      
+
       return {
         ...medicine,
         price: basePrice, // Keep base price
@@ -225,7 +226,7 @@ export const getMedicines = async (req: AuthRequest, res: Response) => {
         errors: error.issues,
       });
     }
-    
+
     console.error('Get medicines error:', error);
     console.error('Error details:', error?.message, error?.stack);
     res.status(500).json({
@@ -255,12 +256,12 @@ export const getMedicineById = async (req: AuthRequest, res: Response) => {
     // Get hospital config for markup percentage
     const hospitalConfig = await prisma.hospitalConfig.findFirst();
     const markupPercentage = hospitalConfig?.medicineMarkupPercentage ? Number(hospitalConfig.medicineMarkupPercentage) : 0;
-    
+
     const basePrice = Number(medicine.price);
-    const sellingPrice = markupPercentage > 0 
+    const sellingPrice = markupPercentage > 0
       ? basePrice * (1 + markupPercentage / 100)
       : basePrice;
-    
+
     // Add stock status and apply markup to price
     const medicineWithStatus = {
       ...medicine,
@@ -303,7 +304,7 @@ export const updateMedicine = async (req: AuthRequest, res: Response) => {
     // Check for duplicate name if name is being updated
     if (validatedData.name && validatedData.name !== existingMedicine.name) {
       const duplicateMedicine = await prisma.medicineCatalog.findFirst({
-        where: { 
+        where: {
           name: validatedData.name,
           id: { not: id }
         },
@@ -338,15 +339,13 @@ export const updateMedicine = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'UPDATE_MEDICINE',
-        tableName: 'medicines',
-        recordId: id,
-        oldValue: existingMedicine,
-        newValue: updatedMedicine,
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'UPDATE_MEDICINE',
+      tableName: 'medicines',
+      recordId: id,
+      oldValue: existingMedicine,
+      newValue: updatedMedicine,
     });
 
     res.json({
@@ -362,7 +361,7 @@ export const updateMedicine = async (req: AuthRequest, res: Response) => {
         errors: error.issues,
       });
     }
-    
+
     console.error('Update medicine error:', error);
     res.status(500).json({
       success: false,
@@ -416,21 +415,19 @@ export const updateMedicineStock = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'UPDATE_MEDICINE_STOCK',
-        tableName: 'medicine_catalog',
-        recordId: id,
-        oldValue: { stockQuantity: existingMedicine.stockQuantity },
-        newValue: { stockQuantity: newQuantity, operation, reason },
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'UPDATE_MEDICINE_STOCK',
+      tableName: 'medicine_catalog',
+      recordId: id,
+      oldValue: { stockQuantity: existingMedicine.stockQuantity },
+      newValue: { stockQuantity: newQuantity, operation, reason },
     });
 
     res.json({
       success: true,
       message: 'Medicine stock updated successfully',
-      data: { 
+      data: {
         medicine: updatedMedicine,
         operation: {
           type: operation,
@@ -449,7 +446,7 @@ export const updateMedicineStock = async (req: AuthRequest, res: Response) => {
         errors: error.issues,
       });
     }
-    
+
     console.error('Update medicine stock error:', error);
     res.status(500).json({
       success: false,
@@ -496,14 +493,12 @@ export const deleteMedicine = async (req: AuthRequest, res: Response) => {
 
     // Log the action (with error handling to prevent deletion failure)
     try {
-      await prisma.auditLog.create({
-        data: {
-          userId: req.user!.id,
-          action: 'DELETE_MEDICINE',
-          tableName: 'medicines',
-          recordId: id,
-          oldValue: existingMedicine,
-        },
+      await logAudit({
+        userId: req.user!.id,
+        action: 'DELETE_MEDICINE',
+        tableName: 'medicines',
+        recordId: id,
+        oldValue: existingMedicine,
       });
     } catch (auditError) {
       console.warn('Failed to create audit log for medicine deletion:', auditError);
@@ -616,9 +611,9 @@ export const getLowStockMedicines = async (req: AuthRequest, res: Response) => {
 export const getMedicineTransactions = async (req: AuthRequest, res: Response) => {
   try {
     const { medicineId, page = 1, limit = 20 } = req.query;
-    
+
     const skip = (Number(page) - 1) * Number(limit);
-    
+
     const where: any = {};
     if (medicineId) {
       where.medicineId = medicineId as string;
@@ -706,132 +701,532 @@ const orderStatusUpdateSchema = z.object({
 
 // Import medicine catalog from file
 export const importMedicineCatalog = async (req: AuthRequest, res: Response) => {
+  let filePath: string | undefined;
+
   try {
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: 'No file uploaded'
+        message: 'No file uploaded. Please select an Excel file to import.'
       });
     }
 
-    const filePath = req.file.path;
+    filePath = req.file.path;
     const fileType = req.file.mimetype;
 
+    // Validate file type
+    const allowedTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel', // .xls
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+
+    if (!allowedTypes.includes(fileType)) {
+      // Clean up file
+      if (filePath && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      return res.status(400).json({
+        success: false,
+        message: `Unsupported file type: ${fileType}. Please upload an Excel file (.xlsx or .xls).`
+      });
+    }
+
     // Parse the file
-    const parsedMedicines = await FileParserService.parseFile(filePath, fileType);
-    
+    let parsedMedicines;
+    try {
+      console.log('Starting file parse for:', filePath, 'Type:', fileType);
+      parsedMedicines = await FileParserService.parseFile(filePath, fileType);
+      console.log('Parsed medicines count:', parsedMedicines ? parsedMedicines.length : 0);
+      if (parsedMedicines && parsedMedicines.length > 0) {
+        console.log('First parsed medicine sample:', JSON.stringify(parsedMedicines[0], null, 2));
+      }
+    } catch (parseError: any) {
+      console.error('File parsing error:', parseError);
+      console.error('Error stack:', parseError.stack);
+      // Clean up file
+      if (filePath && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      return res.status(400).json({
+        success: false,
+        message: `Failed to parse file: ${parseError.message || 'Invalid file format'}. Please ensure the file is a valid Excel file with proper column headers.`
+      });
+    }
+
+    if (!parsedMedicines || parsedMedicines.length === 0) {
+      console.error('No medicines parsed from file. File path:', filePath);
+      // Clean up file
+      if (filePath && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      return res.status(400).json({
+        success: false,
+        message: 'No data found in file. Please ensure the Excel file contains medicine data with proper column headers. Check the backend console for detailed error messages.'
+      });
+    }
+
+    // Get hospital ID (required for multi-tenancy)
+    let hospitalId: string;
+    let baseCurrency: string;
+    try {
+      hospitalId = await getRequiredHospitalId();
+      console.log('Using hospital ID for import:', hospitalId);
+
+      // Verify the hospital config exists in database
+      const hospitalExists = await prisma.hospitalConfig.findUnique({
+        where: { id: hospitalId },
+        select: { id: true }
+      });
+
+      if (!hospitalExists) {
+        throw new Error(`Hospital with ID ${hospitalId} does not exist in database`);
+      }
+
+      // Get hospital base currency for price conversion
+      const currencies = await getHospitalCurrencies();
+      baseCurrency = currencies.baseCurrency || 'USD';
+      console.log('Hospital base currency for import:', baseCurrency);
+    } catch (error: any) {
+      console.error('Failed to get hospital ID:', error);
+      if (filePath && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      return res.status(500).json({
+        success: false,
+        message: `Hospital configuration error: ${error.message || 'Hospital configuration not found. Please configure hospital settings first.'}`
+      });
+    }
+
     // Validate and save medicines
     const savedMedicines = [];
     const errors = [];
+    const importedMedicineNames = new Set<string>(); // Track which medicines are in the import file
+    const importedMedicineIds = new Set<string>(); // Track which medicine IDs were processed
 
-    for (const medicineData of parsedMedicines) {
+    console.log(`Starting import of ${parsedMedicines.length} medicines for hospital ${hospitalId}`);
+
+    // First pass: Process all medicines from import file
+    for (let i = 0; i < parsedMedicines.length; i++) {
+      const medicineData = parsedMedicines[i];
       try {
         // Validate required fields
         if (!medicineData.name || medicineData.name.trim().length === 0) {
-          errors.push(`Skipped row: Missing medicine name`);
+          errors.push(`Row ${i + 2}: Skipped - Missing medicine name`);
           continue;
         }
 
-        // Check if medicine already exists (by name)
+        // Track this medicine name (case-insensitive for matching)
+        importedMedicineNames.add(medicineData.name.trim().toLowerCase());
+
+        // Check if medicine already exists (by name and hospital)
         const existingMedicine = await prisma.medicineCatalog.findFirst({
-          where: { 
-            name: { 
-              equals: medicineData.name.trim(), 
-              mode: 'insensitive' 
-            } 
+          where: {
+            name: {
+              equals: medicineData.name.trim(),
+              mode: 'insensitive'
+            },
+            hospitalId: hospitalId
           }
         });
 
         let savedMedicine;
-        
+
         if (existingMedicine) {
-          // Update existing medicine - update inventory and other fields
+          // Update existing medicine - REPLACE with new data from import file
+          console.log(`Updating existing medicine: ${medicineData.name} (ID: ${existingMedicine.id})`);
+          console.log('Import data:', JSON.stringify(medicineData, null, 2));
+          console.log('Existing data:', JSON.stringify({
+            stockQuantity: existingMedicine.stockQuantity,
+            price: existingMedicine.price,
+            category: existingMedicine.category
+          }, null, 2));
+
+          // Build update data object - REPLACE all fields with new values from import
+          const updateData: any = {
+            name: medicineData.name.trim(), // Always update name (required field)
+            hospitalId: hospitalId, // Always include hospitalId
+            isActive: true, // Always set to active when importing
+          };
+
+          // Replace ALL fields with new values from import (even if empty/null)
+          // Generic Name: Replace with new value (null if empty)
+          updateData.genericName = (medicineData.genericName && medicineData.genericName.trim()) 
+            ? medicineData.genericName.trim() 
+            : null;
+
+          // Manufacturer: Replace with new value (null if empty)
+          updateData.manufacturer = (medicineData.manufacturer && medicineData.manufacturer.trim()) 
+            ? medicineData.manufacturer.trim() 
+            : null;
+
+          // Category: Replace with new value (default to 'General' if empty)
+          updateData.category = (medicineData.category && medicineData.category.trim()) 
+            ? medicineData.category.trim() 
+            : 'General';
+
+          // Therapeutic Class: Replace with new value (null if empty)
+          updateData.therapeuticClass = (medicineData.therapeuticClass && medicineData.therapeuticClass.trim()) 
+            ? medicineData.therapeuticClass.trim() 
+            : null;
+
+          // ATC Code: Replace with new value (null if empty)
+          updateData.atcCode = (medicineData.atcCode && medicineData.atcCode.trim()) 
+            ? medicineData.atcCode.trim() 
+            : null;
+
+          // Price: REPLACE with new value from import (use 0 if not provided or invalid)
+          // Convert to base currency if import file has different currency
+          let newPrice = medicineData.price !== undefined && medicineData.price !== null 
+            ? (typeof medicineData.price === 'number' ? medicineData.price : parseFloat(medicineData.price) || 0)
+            : 0;
+          
+          // Detect import file currency from price column header or assume from file
+          // Common patterns: "Price(INR)", "Price (USD)", "Price in INR", etc.
+          const importCurrency = medicineData.currency || 
+            (medicineData.priceColumnHeader?.match(/\(([A-Z]{3})\)/i)?.[1]?.toUpperCase()) ||
+            'USD'; // Default to USD if not detected
+          
+          // Convert to base currency if different
+          if (newPrice > 0 && baseCurrency && importCurrency !== baseCurrency) {
+            try {
+              console.log(`Converting price ${newPrice} from ${importCurrency} to ${baseCurrency}`);
+              const convertedPrice = await convertCurrency(newPrice, importCurrency, baseCurrency);
+              if (convertedPrice !== null && convertedPrice > 0) {
+                newPrice = convertedPrice;
+                console.log(`Converted price: ${newPrice} ${baseCurrency}`);
+              } else {
+                console.warn(`Currency conversion failed for ${newPrice} ${importCurrency} to ${baseCurrency}, using original price`);
+              }
+            } catch (conversionError: any) {
+              console.warn(`Error converting currency: ${conversionError.message}, using original price`);
+            }
+          }
+          
+          updateData.price = newPrice >= 0 ? newPrice : 0;
+
+          // Stock Quantity: REPLACE with new value from import (NOT add to existing)
+          const newStock = medicineData.stockQuantity !== undefined && medicineData.stockQuantity !== null
+            ? (typeof medicineData.stockQuantity === 'number' ? medicineData.stockQuantity : parseInt(medicineData.stockQuantity) || 0)
+            : 0;
+          updateData.stockQuantity = newStock >= 0 ? newStock : 0;
+
+          // Low Stock Threshold: REPLACE with new value (default to 10 if not provided)
+          const newThreshold = medicineData.lowStockThreshold !== undefined && medicineData.lowStockThreshold !== null
+            ? (typeof medicineData.lowStockThreshold === 'number' ? medicineData.lowStockThreshold : parseInt(medicineData.lowStockThreshold) || 10)
+            : 10;
+          updateData.lowStockThreshold = newThreshold >= 0 ? newThreshold : 10;
+
+          // Expiry Date: REPLACE with new value (null if not provided)
+          updateData.expiryDate = medicineData.expiryDate || null;
+
+          console.log('Update data to be saved:', JSON.stringify(updateData, null, 2));
+
           savedMedicine = await prisma.medicineCatalog.update({
             where: { id: existingMedicine.id },
-            data: {
-              genericName: medicineData.genericName || existingMedicine.genericName,
-              manufacturer: medicineData.manufacturer || existingMedicine.manufacturer,
-              category: medicineData.category || existingMedicine.category,
-              atcCode: medicineData.atcCode || existingMedicine.atcCode,
-              price: medicineData.price > 0 ? medicineData.price : existingMedicine.price,
-              stockQuantity: existingMedicine.stockQuantity + (medicineData.stockQuantity || 0), // Add to existing stock
-              lowStockThreshold: medicineData.lowStockThreshold || existingMedicine.lowStockThreshold,
-              expiryDate: medicineData.expiryDate || existingMedicine.expiryDate
-            }
+            data: updateData
           });
 
+          // Verify the update was successful
+          if (!savedMedicine || !savedMedicine.id) {
+            throw new Error(`Failed to update medicine ${medicineData.name} - update returned no data`);
+          }
+
+          // Double-check that isActive was set correctly
+          if (savedMedicine.isActive === false) {
+            console.warn(`Medicine ${savedMedicine.name} (ID: ${savedMedicine.id}) was updated but is still inactive. Forcing reactivation...`);
+            savedMedicine = await prisma.medicineCatalog.update({
+              where: { id: savedMedicine.id },
+              data: { isActive: true }
+            });
+          }
+
+          console.log('Medicine updated successfully:', savedMedicine.id, 'Name:', savedMedicine.name, 'New stock:', savedMedicine.stockQuantity, 'Active:', savedMedicine.isActive, 'Hospital:', savedMedicine.hospitalId);
+          importedMedicineIds.add(savedMedicine.id);
           savedMedicines.push(savedMedicine);
-          
-          // Note: Stock quantity is updated directly above
-          // Transaction logs are typically for prescription dispensing, not bulk imports
         } else {
           // Create new medicine
           const code = `MED-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          savedMedicine = await prisma.medicineCatalog.create({
-            data: {
-              code: code,
-              name: medicineData.name.trim(),
-              genericName: medicineData.genericName,
-              manufacturer: medicineData.manufacturer,
-              category: medicineData.category || 'General',
-              therapeuticClass: medicineData.therapeuticClass,
-              atcCode: medicineData.atcCode,
-              price: medicineData.price || 0,
-              stockQuantity: medicineData.stockQuantity || 0,
-              lowStockThreshold: medicineData.lowStockThreshold || 10,
-              expiryDate: medicineData.expiryDate,
-              isActive: true
+          
+          // Convert price to base currency if import file has different currency
+          let priceToSave = medicineData.price || 0;
+          const importCurrency = medicineData.currency || 
+            (medicineData.priceColumnHeader?.match(/\(([A-Z]{3})\)/i)?.[1]?.toUpperCase()) ||
+            'USD'; // Default to USD if not detected
+          
+          // Convert to base currency if different
+          if (priceToSave > 0 && baseCurrency && importCurrency !== baseCurrency) {
+            try {
+              console.log(`Converting price ${priceToSave} from ${importCurrency} to ${baseCurrency} for new medicine`);
+              const convertedPrice = await convertCurrency(priceToSave, importCurrency, baseCurrency);
+              if (convertedPrice !== null && convertedPrice > 0) {
+                priceToSave = convertedPrice;
+                console.log(`Converted price: ${priceToSave} ${baseCurrency}`);
+              } else {
+                console.warn(`Currency conversion failed for ${priceToSave} ${importCurrency} to ${baseCurrency}, using original price`);
+              }
+            } catch (conversionError: any) {
+              console.warn(`Error converting currency: ${conversionError.message}, using original price`);
             }
+          }
+          
+          const createData = {
+            code: code,
+            name: medicineData.name.trim(),
+            genericName: medicineData.genericName,
+            manufacturer: medicineData.manufacturer,
+            category: medicineData.category || 'General',
+            therapeuticClass: medicineData.therapeuticClass,
+            atcCode: medicineData.atcCode,
+            price: priceToSave,
+            stockQuantity: medicineData.stockQuantity || 0,
+            lowStockThreshold: medicineData.lowStockThreshold || 10,
+            expiryDate: medicineData.expiryDate,
+            isActive: true,
+            hospitalId: hospitalId // Always include hospitalId
+          };
+
+          savedMedicine = await prisma.medicineCatalog.create({
+            data: createData
           });
 
+          // Verify the create was successful
+          if (!savedMedicine || !savedMedicine.id) {
+            throw new Error(`Failed to create medicine ${medicineData.name} - create returned no data`);
+          }
+
+          console.log('Medicine created successfully:', savedMedicine.id, 'Name:', savedMedicine.name, 'Hospital:', savedMedicine.hospitalId);
+          importedMedicineIds.add(savedMedicine.id);
           savedMedicines.push(savedMedicine);
-          
-          // Note: Initial stock quantity is set directly above
-          // Transaction logs are typically for prescription dispensing, not bulk imports
         }
 
         // Create low stock alert if needed
-        if (medicineData.stockQuantity <= medicineData.lowStockThreshold) {
-          await prisma.lowStockAlert.create({
-            data: {
-              medicineId: savedMedicine.id,
-              threshold: medicineData.lowStockThreshold,
-              currentStock: medicineData.stockQuantity
+        if (savedMedicine.stockQuantity <= savedMedicine.lowStockThreshold) {
+          // Check if alert already exists
+          const existingAlert = await prisma.lowStockAlert.findFirst({
+            where: {
+              medicineId: savedMedicine.id
             }
           });
+
+          if (!existingAlert) {
+            await prisma.lowStockAlert.create({
+              data: {
+                medicineId: savedMedicine.id,
+                threshold: savedMedicine.lowStockThreshold,
+                currentStock: savedMedicine.stockQuantity
+              }
+            });
+          }
         }
-      } catch (error) {
-        errors.push(`Error saving "${medicineData.name}": ${error.message}`);
+      } catch (error: any) {
+        errors.push(`Row ${i + 2} - "${medicineData.name || 'Unknown'}": ${error.message || 'Unknown error'}`);
       }
     }
 
+    // Second pass: Delete medicines that are NOT in the import file (full replace mode)
+    // Only delete medicines that belong to this hospital
+    let deletedCount = 0;
+    try {
+      const allHospitalMedicines = await prisma.medicineCatalog.findMany({
+        where: {
+          hospitalId: hospitalId,
+          isActive: true
+        },
+        select: {
+          id: true,
+          name: true
+        }
+      });
+
+      // Find medicines in database that are NOT in the import file
+      // Check both by name (case-insensitive) and by ID (in case name changed)
+      const medicinesToDelete = allHospitalMedicines.filter(medicine => {
+        const medicineNameLower = medicine.name.trim().toLowerCase();
+        const notInImportByName = !importedMedicineNames.has(medicineNameLower);
+        const notInImportById = !importedMedicineIds.has(medicine.id);
+        // Delete if not found by name AND not found by ID (in case it was updated)
+        return notInImportByName && notInImportById;
+      });
+
+      // Delete medicines not in import file
+      if (medicinesToDelete.length > 0) {
+        console.log(`Deleting ${medicinesToDelete.length} medicines not present in import file...`);
+        for (const medicineToDelete of medicinesToDelete) {
+          try {
+            await prisma.medicineCatalog.update({
+              where: { id: medicineToDelete.id },
+              data: { isActive: false } // Soft delete by setting isActive to false
+            });
+            deletedCount++;
+            console.log(`Deleted medicine: ${medicineToDelete.name} (ID: ${medicineToDelete.id})`);
+          } catch (deleteError: any) {
+            console.error(`Failed to delete medicine ${medicineToDelete.name}:`, deleteError);
+            errors.push(`Failed to delete medicine "${medicineToDelete.name}": ${deleteError.message}`);
+          }
+        }
+      }
+    } catch (deleteError: any) {
+      console.error('Error during cleanup of medicines not in import file:', deleteError);
+      errors.push(`Warning: Could not delete medicines not in import file: ${deleteError.message}`);
+    }
+
     // Clean up uploaded file
-    fs.unlinkSync(filePath);
+    if (filePath && fs.existsSync(filePath)) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (cleanupError) {
+        console.warn('Failed to cleanup uploaded file:', cleanupError);
+      }
+    }
+
+    // Verify saved medicines exist in database (with retry for eventual consistency)
+    let verifiedCount = 0;
+    try {
+      const savedIds = savedMedicines.map(m => m.id);
+      if (savedIds.length > 0) {
+        // First try: Check without isActive filter (in case of any timing issues)
+        let verifiedMedicines = await prisma.medicineCatalog.findMany({
+          where: {
+            id: { in: savedIds },
+            hospitalId: hospitalId
+          },
+          select: { id: true, name: true, stockQuantity: true, isActive: true }
+        });
+        
+        verifiedCount = verifiedMedicines.length;
+        
+        // If not all found, wait a bit and retry (for eventual consistency)
+        if (verifiedCount < savedMedicines.length) {
+          console.log(`First verification found ${verifiedCount} of ${savedMedicines.length}, retrying...`);
+          await new Promise(resolve => setTimeout(resolve, 100)); // Small delay
+          
+          verifiedMedicines = await prisma.medicineCatalog.findMany({
+            where: {
+              id: { in: savedIds },
+              hospitalId: hospitalId
+            },
+            select: { id: true, name: true, stockQuantity: true, isActive: true }
+          });
+          verifiedCount = verifiedMedicines.length;
+        }
+        
+        // Check how many are active
+        const activeCount = verifiedMedicines.filter(m => m.isActive === true).length;
+        const inactiveMedicines = verifiedMedicines.filter(m => m.isActive === false);
+        
+        console.log(`Verified ${verifiedCount} of ${savedMedicines.length} imported medicines exist in database (${activeCount} active, ${inactiveMedicines.length} inactive)`);
+        
+        // Reactivate any inactive medicines (they should all be active after import)
+        if (inactiveMedicines.length > 0) {
+          console.log(`Reactivating ${inactiveMedicines.length} medicines that were marked as inactive...`);
+          const inactiveIds = inactiveMedicines.map(m => m.id);
+          try {
+            const reactivateResult = await prisma.medicineCatalog.updateMany({
+              where: {
+                id: { in: inactiveIds },
+                hospitalId: hospitalId
+              },
+              data: {
+                isActive: true
+              }
+            });
+            console.log(`Successfully reactivated ${reactivateResult.count} medicines`);
+            
+            // Re-verify after reactivation to get accurate count
+            const reVerified = await prisma.medicineCatalog.findMany({
+              where: {
+                id: { in: savedIds },
+                hospitalId: hospitalId,
+                isActive: true
+              },
+              select: { id: true, name: true }
+            });
+            verifiedCount = reVerified.length;
+            console.log(`After reactivation: ${verifiedCount} of ${savedMedicines.length} medicines are now active`);
+          } catch (reactivateError: any) {
+            console.error('Error reactivating medicines:', reactivateError);
+            errors.push(`Warning: Could not reactivate ${inactiveMedicines.length} medicines: ${reactivateError.message}`);
+          }
+        }
+        
+        // Only warn if medicines are completely missing (not found at all)
+        if (verifiedCount < savedMedicines.length) {
+          const allFoundMedicines = await prisma.medicineCatalog.findMany({
+            where: {
+              id: { in: savedIds },
+              hospitalId: hospitalId
+            },
+            select: { id: true }
+          });
+          const missingIds = savedIds.filter(id => !allFoundMedicines.some(m => m.id === id));
+          if (missingIds.length > 0) {
+            console.warn(`Warning: ${missingIds.length} medicines were not found in database after import. Missing IDs: ${missingIds.join(', ')}`);
+            errors.push(`Warning: ${missingIds.length} medicines could not be found in database after import`);
+          }
+        }
+      }
+    } catch (verifyError: any) {
+      console.error('Error verifying imported medicines:', verifyError);
+      // Don't add to errors - verification is just a check, not critical
+      console.warn('Verification failed, but medicines were saved. This may be a timing issue.');
+    }
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
+    try {
+      await logAudit({
         userId: req.user!.id,
         action: 'IMPORT_MEDICINE_CATALOG',
         tableName: 'medicine_catalog',
         recordId: 'bulk_import',
-        newValue: { importedCount: savedMedicines.length, errors }
-      }
-    });
+        newValue: { 
+          importedCount: savedMedicines.length, 
+          verifiedCount: verifiedCount,
+          deletedCount: deletedCount,
+          errors: errors.length 
+        }
+      });
+    } catch (auditError) {
+      console.warn('Failed to create audit log:', auditError);
+    }
+
+    console.log(`Import completed: ${savedMedicines.length} imported, ${deletedCount} deleted, ${errors.length} errors, ${verifiedCount} verified`);
+
+    // Separate actual errors from warnings
+    const actualErrors = errors.filter(e => !e.toLowerCase().includes('warning'));
+    const warnings = errors.filter(e => e.toLowerCase().includes('warning'));
 
     res.json({
       success: true,
-      message: `Successfully imported ${savedMedicines.length} medicines`,
+      message: `Successfully imported ${savedMedicines.length} medicine(s). ${deletedCount > 0 ? `${deletedCount} medicine(s) not in file were removed. ` : ''}${actualErrors.length > 0 ? `${actualErrors.length} error(s) occurred.` : ''}`,
       data: {
         imported: savedMedicines,
-        errors: errors
+        importedCount: savedMedicines.length,
+        verifiedCount: verifiedCount,
+        deletedCount: deletedCount,
+        errors: actualErrors,
+        warnings: warnings,
+        errorCount: actualErrors.length,
+        warningCount: warnings.length
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Import medicine catalog error:', error);
+
+    // Clean up uploaded file on error
+    if (filePath && fs.existsSync(filePath)) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (cleanupError) {
+        console.warn('Failed to cleanup uploaded file on error:', cleanupError);
+      }
+    }
+
     res.status(500).json({
       success: false,
-      message: 'Error importing medicine catalog'
+      message: `Error importing medicine catalog: ${error.message || 'Unknown error occurred'}`
     });
   }
 };
@@ -897,14 +1292,12 @@ export const createMedicineOrder = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'CREATE_MEDICINE_ORDER',
-        tableName: 'medicine_orders',
-        recordId: order.id,
-        newValue: order
-      }
+    await logAudit({
+      userId: req.user!.id,
+      action: 'CREATE_MEDICINE_ORDER',
+      tableName: 'medicine_orders',
+      recordId: order.id,
+      newValue: order,
     });
 
     res.status(201).json({
@@ -920,7 +1313,7 @@ export const createMedicineOrder = async (req: AuthRequest, res: Response) => {
         errors: error.issues,
       });
     }
-    
+
     console.error('Create medicine order error:', error);
     res.status(500).json({
       success: false,
@@ -1032,7 +1425,7 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
         errors: error.issues,
       });
     }
-    
+
     console.error('Update order status error:', error);
     res.status(500).json({
       success: false,

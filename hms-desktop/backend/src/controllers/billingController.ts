@@ -307,7 +307,7 @@ export const getBillById = async (req: AuthRequest, res: Response) => {
             name: true,
             phone: true,
             address: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
           },
         },

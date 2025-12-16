@@ -28,7 +28,7 @@ if (started) {
   app.quit();
 }
 
-desktopLogger.info('🚀 Starting HMS Desktop Application...');
+desktopLogger.info('🚀 Starting ZenHosp Desktop Application...');
 
 // Store reference to main window for menu actions
 let mainWindow: BrowserWindow | null = null;
@@ -142,6 +142,7 @@ const createWindow = () => {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
+    title: 'ZenHosp - Hospital Management System', // Explicitly set window title
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       // Content Security Policy settings
@@ -305,6 +306,10 @@ const registerGlobalShortcuts = () => {
 // This method will be called when Electron has finished initialization
 app.on("ready", () => {
   desktopLogger.info('Electron app ready');
+  
+  // Set application name (used in title bar and system menus)
+  app.setName('ZenHosp - Hospital Management System');
+  
   createMenu(); // Create application menu
   createWindow();
   registerGlobalShortcuts(); // Register global shortcuts after window is created

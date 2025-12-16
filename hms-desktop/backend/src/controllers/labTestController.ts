@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { logAudit } from '../utils/auditLogger';
 import { PrismaClient, LabTestStatus } from '@prisma/client';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
@@ -154,7 +155,7 @@ export const createLabTest = async (req: AuthRequest, res: Response) => {
             id: true,
             name: true,
             phone: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
           },
         },
@@ -177,14 +178,12 @@ export const createLabTest = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'CREATE_LAB_TEST',
-        tableName: 'lab_tests',
-        recordId: labTest.id,
-        newValue: labTest,
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'CREATE_LAB_TEST',
+      tableName: 'lab_tests',
+      recordId: labTest.id,
+      newValue: labTest,
     });
 
     res.status(201).json({
@@ -258,7 +257,7 @@ export const getLabTests = async (req: AuthRequest, res: Response) => {
               id: true,
               name: true,
               phone: true,
-              age: true,
+              dateOfBirth: true,
               gender: true,
             },
           },
@@ -338,7 +337,7 @@ export const getLabTestById = async (req: AuthRequest, res: Response) => {
             id: true,
             name: true,
             phone: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
             address: true,
             bloodGroup: true,
@@ -429,7 +428,7 @@ export const updateLabTest = async (req: AuthRequest, res: Response) => {
             id: true,
             name: true,
             phone: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
           },
         },
@@ -452,15 +451,13 @@ export const updateLabTest = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'UPDATE_LAB_TEST',
-        tableName: 'lab_tests',
-        recordId: id,
-        oldValue: existingLabTest,
-        newValue: updatedLabTest,
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'UPDATE_LAB_TEST',
+      tableName: 'lab_tests',
+      recordId: id,
+      oldValue: existingLabTest,
+      newValue: updatedLabTest,
     });
 
     res.json({
@@ -544,7 +541,7 @@ export const getPendingLabTests = async (req: AuthRequest, res: Response) => {
             id: true,
             name: true,
             phone: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
           },
         },
@@ -635,14 +632,12 @@ export const createTestCatalogItem = async (req: AuthRequest, res: Response) => 
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'CREATE_TEST_CATALOG',
-        tableName: 'test_catalog',
-        recordId: testCatalogItem.id,
-        newValue: testCatalogItem,
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'CREATE_TEST_CATALOG',
+      tableName: 'test_catalog',
+      recordId: testCatalogItem.id,
+      newValue: testCatalogItem,
     });
 
     res.status(201).json({
@@ -706,15 +701,13 @@ export const updateTestCatalogItem = async (req: AuthRequest, res: Response) => 
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'UPDATE_TEST_CATALOG',
-        tableName: 'test_catalog',
-        recordId: id,
-        oldValue: existingItem,
-        newValue: updatedItem,
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'UPDATE_TEST_CATALOG',
+      tableName: 'test_catalog',
+      recordId: id,
+      oldValue: existingItem,
+      newValue: updatedItem,
     });
 
     res.json({
@@ -770,7 +763,7 @@ export const getScheduledLabTests = async (req: AuthRequest, res: Response) => {
             id: true,
             name: true,
             phone: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
           },
         },
@@ -1000,7 +993,7 @@ export const getLabTestsByCategory = async (req: AuthRequest, res: Response) => 
               id: true,
               name: true,
               phone: true,
-              age: true,
+              dateOfBirth: true,
               gender: true,
             },
           },
@@ -1038,7 +1031,7 @@ export const getLabTestsByCategory = async (req: AuthRequest, res: Response) => 
               id: true,
               name: true,
               phone: true,
-              age: true,
+              dateOfBirth: true,
               gender: true,
             },
           },
@@ -1322,14 +1315,12 @@ export const setTechnicianTestSelections = async (req: AuthRequest, res: Respons
 
       console.log(`Cleared ${deletedCount.count} selections for technician ${technicianId}, lab type ${labType}`);
 
-      await prisma.auditLog.create({
-        data: {
-          userId: req.user!.id,
-          action: 'SET_TECHNICIAN_TEST_SELECTIONS',
-          tableName: 'technician_test_selections',
-          recordId: technicianId,
-          newValue: { technicianId, testCatalogIds: [], labType },
-        },
+      await logAudit({
+        userId: req.user!.id,
+        action: 'SET_TECHNICIAN_TEST_SELECTIONS',
+        tableName: 'technician_test_selections',
+        recordId: technicianId,
+        newValue: { technicianId, testCatalogIds: [], labType },
       }).catch(err => {
         console.error('Failed to create audit log:', err);
         // Don't fail the request if audit log fails
@@ -1467,14 +1458,12 @@ export const setTechnicianTestSelections = async (req: AuthRequest, res: Respons
     }
 
     // Log the action (non-blocking)
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'SET_TECHNICIAN_TEST_SELECTIONS',
-        tableName: 'technician_test_selections',
-        recordId: technicianId,
-        newValue: { technicianId, testCatalogIds: validTestIds, labType },
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'SET_TECHNICIAN_TEST_SELECTIONS',
+      tableName: 'technician_test_selections',
+      recordId: technicianId,
+      newValue: { technicianId, testCatalogIds: validTestIds, labType },
     }).catch(err => {
       console.error('Failed to create audit log:', err);
       // Don't fail the request if audit log fails
@@ -1636,7 +1625,7 @@ export const uploadLabTestReport = async (req: AuthRequest, res: Response) => {
             id: true,
             name: true,
             phone: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
           },
         },
@@ -1659,15 +1648,13 @@ export const uploadLabTestReport = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'UPLOAD_LAB_TEST_REPORT',
-        tableName: 'lab_tests',
-        recordId: id,
-        oldValue: { reportFile: existingLabTest.reportFile },
-        newValue: { reportFile: filePath },
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'UPLOAD_LAB_TEST_REPORT',
+      tableName: 'lab_tests',
+      recordId: id,
+      oldValue: { reportFile: existingLabTest.reportFile },
+      newValue: { reportFile: filePath },
     });
 
     res.json({

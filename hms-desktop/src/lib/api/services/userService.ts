@@ -40,6 +40,17 @@ class UserService {
       '/users',
       userData
     );
+    
+    // Check if response is successful
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to create user');
+    }
+    
+    // Check if data exists
+    if (!response.data.data || !response.data.data.user) {
+      throw new Error('Invalid response format from server');
+    }
+    
     return response.data.data.user;
   }
 

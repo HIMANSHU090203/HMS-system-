@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { logAudit } from '../utils/auditLogger';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
@@ -88,7 +89,7 @@ export const createDailyRound = async (req: AuthRequest, res: Response) => {
               select: {
                 id: true,
                 name: true,
-                age: true,
+                dateOfBirth: true,
                 gender: true,
               },
             },
@@ -118,17 +119,15 @@ export const createDailyRound = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'CREATE_DAILY_ROUND',
-        tableName: 'daily_rounds',
-        recordId: dailyRound.id,
-        newValue: {
-          admissionId: dailyRound.admissionId,
-          doctorId: dailyRound.doctorId,
-          roundDate: dailyRound.roundDate,
-        },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'CREATE_DAILY_ROUND',
+      tableName: 'daily_rounds',
+      recordId: dailyRound.id,
+      newValue: {
+        admissionId: dailyRound.admissionId,
+        doctorId: dailyRound.doctorId,
+        roundDate: dailyRound.roundDate,
       },
     });
 
@@ -179,7 +178,7 @@ export const getDailyRounds = async (req: AuthRequest, res: Response) => {
                 select: {
                   id: true,
                   name: true,
-                  age: true,
+                  dateOfBirth: true,
                   gender: true,
                 },
               },
@@ -313,7 +312,7 @@ export const updateDailyRound = async (req: AuthRequest, res: Response) => {
               select: {
                 id: true,
                 name: true,
-                age: true,
+                dateOfBirth: true,
                 gender: true,
               },
             },
@@ -343,15 +342,13 @@ export const updateDailyRound = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'UPDATE_DAILY_ROUND',
-        tableName: 'daily_rounds',
-        recordId: dailyRound.id,
-        oldValue: existingRound,
-        newValue: dailyRound,
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'UPDATE_DAILY_ROUND',
+      tableName: 'daily_rounds',
+      recordId: dailyRound.id,
+      oldValue: existingRound,
+      newValue: dailyRound,
     });
 
     res.status(200).json({
@@ -397,14 +394,12 @@ export const deleteDailyRound = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'DELETE_DAILY_ROUND',
-        tableName: 'daily_rounds',
-        recordId: id,
-        oldValue: dailyRound,
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'DELETE_DAILY_ROUND',
+      tableName: 'daily_rounds',
+      recordId: id,
+      oldValue: dailyRound,
     });
 
     res.status(200).json({

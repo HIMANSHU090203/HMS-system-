@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { logAudit } from '../utils/auditLogger';
 import { PrismaClient, PaymentStatus, PaymentMode } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { z } from 'zod';
@@ -123,7 +124,7 @@ export const createInpatientBill = async (req: AuthRequest, res: Response) => {
               select: {
                 id: true,
                 name: true,
-                age: true,
+                dateOfBirth: true,
                 gender: true,
                 phone: true,
               },
@@ -154,17 +155,15 @@ export const createInpatientBill = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'CREATE_INPATIENT_BILL',
-        tableName: 'inpatient_bills',
-        recordId: inpatientBill.id,
-        newValue: {
-          admissionId: inpatientBill.admissionId,
-          totalAmount: inpatientBill.totalAmount,
-          status: inpatientBill.status,
-        },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'CREATE_INPATIENT_BILL',
+      tableName: 'inpatient_bills',
+      recordId: inpatientBill.id,
+      newValue: {
+        admissionId: inpatientBill.admissionId,
+        totalAmount: inpatientBill.totalAmount,
+        status: inpatientBill.status,
       },
     });
 
@@ -215,7 +214,7 @@ export const getInpatientBills = async (req: AuthRequest, res: Response) => {
                 select: {
                   id: true,
                   name: true,
-                  age: true,
+                  dateOfBirth: true,
                   gender: true,
                   phone: true,
                 },
@@ -371,7 +370,7 @@ export const updateInpatientBill = async (req: AuthRequest, res: Response) => {
               select: {
                 id: true,
                 name: true,
-                age: true,
+                dateOfBirth: true,
                 gender: true,
                 phone: true,
               },
@@ -402,15 +401,13 @@ export const updateInpatientBill = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'UPDATE_INPATIENT_BILL',
-        tableName: 'inpatient_bills',
-        recordId: inpatientBill.id,
-        oldValue: existingBill,
-        newValue: inpatientBill,
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'UPDATE_INPATIENT_BILL',
+      tableName: 'inpatient_bills',
+      recordId: inpatientBill.id,
+      oldValue: existingBill,
+      newValue: inpatientBill,
     });
 
     res.status(200).json({

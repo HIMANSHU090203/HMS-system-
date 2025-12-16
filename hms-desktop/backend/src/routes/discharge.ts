@@ -18,9 +18,9 @@ router.get('/', requireRole('ADMIN', 'DOCTOR', 'WARD_MANAGER'), getDischargeSumm
 router.get('/admission/:admissionId', requireRole('ADMIN', 'DOCTOR', 'WARD_MANAGER', 'NURSE'), getDischargeSummaryByAdmission);
 router.get('/:id', requireRole('ADMIN', 'DOCTOR', 'WARD_MANAGER', 'NURSE'), getDischargeSummaryById);
 
-// Discharge summary creation and modification (Admin, IPD Doctor, Doctor only)
-router.post('/', requireRole('ADMIN', 'DOCTOR'), createDischargeSummary);
-router.put('/:id', requireRole('ADMIN', 'DOCTOR'), updateDischargeSummary);
+// Discharge summary creation and modification (Admin, Doctor, Nurse - based on IPD sub-module permissions)
+router.post('/', requireRole('ADMIN', 'DOCTOR', 'NURSE'), createDischargeSummary);
+router.put('/:id', requireRole('ADMIN', 'DOCTOR', 'NURSE'), updateDischargeSummary);
 
 export { router as dischargeRoutes };
 

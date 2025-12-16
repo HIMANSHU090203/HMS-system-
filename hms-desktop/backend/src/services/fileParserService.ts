@@ -11,6 +11,8 @@ export interface ParsedMedicine {
   therapeuticClass?: string;
   atcCode?: string;
   price: number;
+  currency?: string; // Detected currency from column header (e.g., "INR", "USD")
+  priceColumnHeader?: string; // Original column header (e.g., "Price(INR)")
   stockQuantity: number;
   lowStockThreshold: number;
   expiryDate?: Date;
@@ -18,23 +20,229 @@ export interface ParsedMedicine {
 
 export class FileParserService {
   static async parseExcel(filePath: string): Promise<ParsedMedicine[]> {
-    const workbook = XLSX.readFile(filePath);
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(worksheet);
-    
-    return data.map((row: any) => ({
-      name: row['Medicine Name'] || row['Name'] || row['medicine_name'] || '',
-      genericName: row['Generic Name'] || row['Generic'] || row['generic_name'] || '',
-      manufacturer: row['Manufacturer'] || row['Company'] || row['manufacturer'] || '',
-      category: row['Category'] || row['Type'] || row['category'] || 'General',
-      therapeuticClass: row['Therapeutic Class'] || row['Therapeutic'] || row['therapeutic_class'] || '',
-      atcCode: row['ATC Code'] || row['ATC'] || row['atc_code'] || '',
-      price: parseFloat(row['Price'] || row['Cost'] || row['price'] || '0'),
-      stockQuantity: parseInt(row['Quantity'] || row['Stock'] || row['stock_quantity'] || '0'),
-      lowStockThreshold: parseInt(row['Low Stock Threshold'] || row['Threshold'] || row['low_stock_threshold'] || '10'),
-      expiryDate: row['Expiry Date'] || row['expiry_date'] ? new Date(row['Expiry Date'] || row['expiry_date']) : undefined
-    }));
+    try {
+      const workbook = XLSX.readFile(filePath);
+      
+      if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+        throw new Error('Excel file has no sheets');
+      }
+      
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      
+      if (!worksheet) {
+        throw new Error(`Sheet "${sheetName}" not found in Excel file`);
+      }
+      
+      // Convert sheet to JSON with header row
+      const data = XLSX.utils.sheet_to_json(worksheet, { 
+        defval: '', // Default value for empty cells
+        raw: false // Convert all values to strings first
+      });
+      
+      // Debug: Log first row to see actual column names
+      if (data && data.length > 0) {
+        console.log('Excel import - First row keys:', Object.keys(data[0]));
+        console.log('Excel import - First row sample:', JSON.stringify(data[0], null, 2));
+      }
+      
+      if (!data || data.length === 0) {
+        throw new Error('Excel file contains no data rows');
+      }
+      
+      // Helper function to normalize column names (remove common suffixes, trim, lowercase)
+      const normalizeColumnName = (name: string): string => {
+        return name
+          .toLowerCase()
+          .replace(/\s*\(required\)/gi, '') // Remove "(required)"
+          .replace(/\s*\(optional\)/gi, '') // Remove "(optional)"
+          .replace(/\s*\(.*?\)/g, '') // Remove any other parentheses content
+          .trim();
+      };
+
+      // Helper function to find column value (case-insensitive, handles various formats)
+      const getColumnValue = (row: any, ...possibleNames: string[]): string => {
+        // First, normalize all possible names
+        const normalizedPossibleNames = possibleNames.map(normalizeColumnName);
+        
+        // Normalize all keys in the row
+        const normalizedRow: Record<string, string> = {};
+        const keyMapping: Record<string, string> = {}; // Map normalized key to original key
+        for (const key in row) {
+          const normalizedKey = normalizeColumnName(key);
+          if (!normalizedRow[normalizedKey] || (row[key] !== undefined && row[key] !== null && row[key] !== '')) {
+            normalizedRow[normalizedKey] = String(row[key] || '').trim();
+            keyMapping[normalizedKey] = key; // Store original key
+          }
+        }
+        
+        // Try to find a match
+        for (let i = 0; i < normalizedPossibleNames.length; i++) {
+          const normalizedName = normalizedPossibleNames[i];
+          const originalName = possibleNames[i];
+          
+          // Try exact match first (original name - case sensitive)
+          if (row[originalName] !== undefined && row[originalName] !== null && row[originalName] !== '') {
+            return String(row[originalName]).trim();
+          }
+          
+          // Try case-insensitive exact match
+          for (const key in row) {
+            if (key.toLowerCase() === originalName.toLowerCase() && row[key] !== undefined && row[key] !== null && row[key] !== '') {
+              return String(row[key]).trim();
+            }
+          }
+          
+          // Try normalized match
+          if (normalizedRow[normalizedName] && normalizedRow[normalizedName] !== '') {
+            return normalizedRow[normalizedName];
+          }
+          
+          // Try partial match (contains the normalized name)
+          for (const key in normalizedRow) {
+            if (key.includes(normalizedName) || normalizedName.includes(key)) {
+              if (normalizedRow[key] && normalizedRow[key] !== '') {
+                return normalizedRow[key];
+              }
+            }
+          }
+        }
+        return '';
+      };
+      
+      return data.map((row: any, index: number) => {
+        // Get medicine name (required field)
+        const name = getColumnValue(
+          row,
+          'Medicine Name (required)', 'Medicine Name', 'Name', 'medicine_name', 'Medicine', 
+          'Drug Name', 'drug_name', 'Product Name', 'product_name'
+        );
+        
+        // Get other fields
+        const genericName = getColumnValue(
+          row,
+          'Generic Name', 'Generic', 'generic_name', 'Generic Name (INN)'
+        );
+        
+        const manufacturer = getColumnValue(
+          row,
+          'Manufacturer', 'Company', 'manufacturer', 'Company Name', 
+          'Brand', 'brand', 'Supplier', 'supplier'
+        );
+        
+        const category = getColumnValue(
+          row,
+          'Category', 'Type', 'category', 'Medicine Category', 
+          'Drug Category', 'drug_category', 'Class', 'class'
+        ) || 'General';
+        
+        const therapeuticClass = getColumnValue(
+          row,
+          'Therapeutic Class', 'Therapeutic', 'therapeutic_class', 
+          'Therapeutic Category', 'therapeutic_category'
+        );
+        
+        const atcCode = getColumnValue(
+          row,
+          'ATC Code', 'ATC', 'atc_code', 'ATC Classification'
+        );
+        
+        // Parse price (handle various formats)
+        // Also detect currency from column header (e.g., "Price(INR)", "Price (USD)")
+        let priceColumnHeader = '';
+        const priceColumnKeys = ['Price', 'Cost', 'price', 'Unit Price', 'unit_price', 
+          'Selling Price', 'selling_price', 'MRP', 'mrp', 'Price(INR)', 'Price (INR)',
+          'Price(USD)', 'Price (USD)', 'Price(EUR)', 'Price (EUR)'];
+        
+        for (const key of priceColumnKeys) {
+          if (row[key] !== undefined && row[key] !== null && row[key] !== '') {
+            priceColumnHeader = key;
+            break;
+          }
+        }
+        
+        const priceStr = getColumnValue(
+          row,
+          'Price', 'Cost', 'price', 'Unit Price', 'unit_price', 
+          'Selling Price', 'selling_price', 'MRP', 'mrp', 'Price(INR)', 'Price (INR)',
+          'Price(USD)', 'Price (USD)', 'Price(EUR)', 'Price (EUR)'
+        );
+        const price = parseFloat(priceStr.replace(/[^\d.-]/g, '')) || 0;
+        
+        // Extract currency from column header if present (e.g., "Price(INR)" -> "INR")
+        let detectedCurrency = '';
+        if (priceColumnHeader) {
+          const currencyMatch = priceColumnHeader.match(/\(([A-Z]{3})\)/i);
+          if (currencyMatch) {
+            detectedCurrency = currencyMatch[1].toUpperCase();
+          }
+        }
+        
+        // Parse stock quantity
+        const quantityStr = getColumnValue(
+          row,
+          'Quantity', 'Stock', 'stock_quantity', 'Stock Quantity', 
+          'Available Stock', 'available_stock', 'Qty', 'qty', 'Units', 'units'
+        );
+        const stockQuantity = parseInt(quantityStr.replace(/[^\d]/g, '')) || 0;
+        
+        // Parse low stock threshold
+        const thresholdStr = getColumnValue(
+          row,
+          'Low Stock Threshold', 'Threshold', 'low_stock_threshold', 
+          'Minimum Stock', 'minimum_stock', 'Reorder Level', 'reorder_level'
+        );
+        const lowStockThreshold = parseInt(thresholdStr.replace(/[^\d]/g, '')) || 10;
+        
+        // Parse expiry date
+        const expiryDateStr = getColumnValue(
+          row,
+          'Expiry Date', 'expiry_date', 'Expiry', 'expiry', 
+          'Expiration Date', 'expiration_date', 'Valid Until', 'valid_until'
+        );
+        let expiryDate: Date | undefined;
+        if (expiryDateStr) {
+          // Try to parse date - Excel dates might be numbers
+          const dateNum = parseFloat(expiryDateStr);
+          if (!isNaN(dateNum) && dateNum > 25569) {
+            // Excel date serial number (days since 1900-01-01)
+            // Convert Excel serial date to JavaScript Date
+            const excelEpoch = new Date(1899, 11, 30); // Excel epoch is 1899-12-30
+            expiryDate = new Date(excelEpoch.getTime() + dateNum * 86400000);
+          } else {
+            // Try parsing as date string
+            const parsed = new Date(expiryDateStr);
+            if (!isNaN(parsed.getTime())) {
+              expiryDate = parsed;
+            }
+          }
+        }
+        
+        return {
+          name: name,
+          genericName: genericName || undefined,
+          manufacturer: manufacturer || undefined,
+          category: category,
+          therapeuticClass: therapeuticClass || undefined,
+          atcCode: atcCode || undefined,
+          price: price,
+          currency: detectedCurrency || undefined, // Include detected currency
+          priceColumnHeader: priceColumnHeader || undefined, // Include original column header
+          stockQuantity: stockQuantity,
+          lowStockThreshold: lowStockThreshold,
+          expiryDate: expiryDate
+        };
+      }).filter(medicine => {
+        // Filter out rows without names, but log what we're filtering
+        if (!medicine.name || medicine.name.length === 0) {
+          console.log('Filtered out row - no medicine name found');
+          return false;
+        }
+        return true;
+      });
+    } catch (error: any) {
+      throw new Error(`Failed to parse Excel file: ${error.message || 'Unknown error'}`);
+    }
   }
 
   static async parsePDF(filePath: string): Promise<ParsedMedicine[]> {

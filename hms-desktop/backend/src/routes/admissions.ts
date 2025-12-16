@@ -16,16 +16,16 @@ const router = Router();
 // All admission routes require authentication
 router.use(authenticateToken);
 
-// Admission management routes (Admin, IPD Doctor, Ward Manager)
-router.get('/', requireRole('ADMIN', 'DOCTOR', 'WARD_MANAGER'), getAdmissions);
-router.get('/current', requireRole('ADMIN', 'DOCTOR', 'WARD_MANAGER', 'NURSE'), getCurrentAdmissions);
-router.get('/stats', requireRole('ADMIN', 'DOCTOR', 'WARD_MANAGER'), getAdmissionStats);
-router.get('/:id', requireRole('ADMIN', 'DOCTOR', 'WARD_MANAGER', 'NURSE'), getAdmissionById);
-router.get('/:id/charges-preview', requireRole('ADMIN', 'DOCTOR', 'WARD_MANAGER', 'NURSE'), getChargesPreview);
+// Admission management routes (Admin, Receptionist - based on IPD sub-module permissions)
+router.get('/', requireRole('ADMIN', 'RECEPTIONIST'), getAdmissions);
+router.get('/current', requireRole('ADMIN', 'RECEPTIONIST', 'DOCTOR', 'NURSE', 'WARD_MANAGER'), getCurrentAdmissions);
+router.get('/stats', requireRole('ADMIN', 'RECEPTIONIST'), getAdmissionStats);
+router.get('/:id', requireRole('ADMIN', 'RECEPTIONIST', 'DOCTOR', 'NURSE', 'WARD_MANAGER'), getAdmissionById);
+router.get('/:id/charges-preview', requireRole('ADMIN', 'RECEPTIONIST', 'DOCTOR', 'NURSE', 'WARD_MANAGER'), getChargesPreview);
 
-// Admission creation and modification (Admin, IPD Doctor only)
-router.post('/', requireRole('ADMIN', 'DOCTOR'), createAdmission);
-router.put('/:id', requireRole('ADMIN', 'DOCTOR'), updateAdmission);
-router.put('/:id/discharge', requireRole('ADMIN', 'DOCTOR'), dischargePatient);
+// Admission creation and modification (Admin, Receptionist - based on IPD sub-module permissions)
+router.post('/', requireRole('ADMIN', 'RECEPTIONIST'), createAdmission);
+router.put('/:id', requireRole('ADMIN', 'RECEPTIONIST'), updateAdmission);
+router.put('/:id/discharge', requireRole('ADMIN', 'DOCTOR', 'NURSE'), dischargePatient);
 
 export { router as admissionRoutes };

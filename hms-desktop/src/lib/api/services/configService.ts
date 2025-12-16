@@ -29,6 +29,7 @@ export interface HospitalConfig {
   timezone: string;
   defaultLanguage: string;
   currency: string;
+  displayCurrency?: string; // Display currency for UI (if different from base currency)
   taxRate?: number;
   medicineMarkupPercentage?: number;
   
@@ -99,10 +100,7 @@ class ConfigService {
     return response.data.data;
   }
 
-  async uploadHospitalLogo(file: File): Promise<{ config: HospitalConfig; logoUrl: string }> {
-    const formData = new FormData();
-    formData.append('logo', file);
-    
+  async uploadHospitalLogo(formData: FormData): Promise<{ config: HospitalConfig; logoUrl: string }> {
     // Get token for manual header setting
     const token = localStorage.getItem('accessToken');
     const headers: any = {};

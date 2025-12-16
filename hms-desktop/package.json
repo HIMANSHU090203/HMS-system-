@@ -1,6 +1,6 @@
 {
   "name": "hms-desktop",
-  "productName": "hms-desktop",
+  "productName": "ZenHosp - Hospital Management System",
   "version": "1.0.0",
   "description": "My Electron application description",
   "main": ".vite/build/main.js",
@@ -55,6 +55,7 @@
     "@types/react-dom": "^19.2.1",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
+    "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.21",
     "concurrently": "^9.2.1",
     "electron": "38.2.2",
@@ -66,7 +67,7 @@
     "prettier": "^3.6.2",
     "tailwindcss": "^3.4.18",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "~4.5.4",
+    "typescript": "^5.9.3",
     "vite": "^5.4.20"
   },
   "dependencies": {

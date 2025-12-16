@@ -1,7 +1,9 @@
 import { Response } from 'express';
+import { logAudit } from '../utils/auditLogger';
 import { PrismaClient, BedType } from '@prisma/client';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
+import { getRequiredHospitalId } from '../utils/hospitalHelper';
 
 const prisma = new PrismaClient();
 
@@ -84,17 +86,15 @@ export const createBed = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'CREATE_BED',
-        tableName: 'beds',
-        recordId: newBed.id,
-        newValue: {
-          wardId: newBed.wardId,
-          bedNumber: newBed.bedNumber,
-          bedType: newBed.bedType,
-        },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'CREATE_BED',
+      tableName: 'beds',
+      recordId: newBed.id,
+      newValue: {
+        wardId: newBed.wardId,
+        bedNumber: newBed.bedNumber,
+        bedType: newBed.bedType,
       },
     });
 
@@ -168,7 +168,7 @@ export const getBeds = async (req: AuthRequest, res: Response) => {
                 select: {
                   id: true,
                   name: true,
-                  age: true,
+                  dateOfBirth: true,
                   gender: true,
                 },
               },
@@ -236,7 +236,7 @@ export const getBedById = async (req: AuthRequest, res: Response) => {
               select: {
                 id: true,
                 name: true,
-                age: true,
+                dateOfBirth: true,
                 gender: true,
                 phone: true,
               },
@@ -324,7 +324,7 @@ export const updateBed = async (req: AuthRequest, res: Response) => {
               select: {
                 id: true,
                 name: true,
-                age: true,
+                dateOfBirth: true,
                 gender: true,
               },
             },
@@ -334,26 +334,24 @@ export const updateBed = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'UPDATE_BED',
-        tableName: 'beds',
-        recordId: id,
-        oldValue: {
-          wardId: existingBed.wardId,
-          bedNumber: existingBed.bedNumber,
-          bedType: existingBed.bedType,
-          isOccupied: existingBed.isOccupied,
-          isActive: existingBed.isActive,
-        },
-        newValue: {
-          wardId: updatedBed.wardId,
-          bedNumber: updatedBed.bedNumber,
-          bedType: updatedBed.bedType,
-          isOccupied: updatedBed.isOccupied,
-          isActive: updatedBed.isActive,
-        },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'UPDATE_BED',
+      tableName: 'beds',
+      recordId: id,
+      oldValue: {
+        wardId: existingBed.wardId,
+        bedNumber: existingBed.bedNumber,
+        bedType: existingBed.bedType,
+        isOccupied: existingBed.isOccupied,
+        isActive: existingBed.isActive,
+      },
+      newValue: {
+        wardId: updatedBed.wardId,
+        bedNumber: updatedBed.bedNumber,
+        bedType: updatedBed.bedType,
+        isOccupied: updatedBed.isOccupied,
+        isActive: updatedBed.isActive,
       },
     });
 
@@ -426,17 +424,15 @@ export const deleteBed = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'DELETE_BED',
-        tableName: 'beds',
-        recordId: id,
-        oldValue: {
-          wardId: existingBed.wardId,
-          bedNumber: existingBed.bedNumber,
-          bedType: existingBed.bedType,
-        },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'DELETE_BED',
+      tableName: 'beds',
+      recordId: id,
+      oldValue: {
+        wardId: existingBed.wardId,
+        bedNumber: existingBed.bedNumber,
+        bedType: existingBed.bedType,
       },
     });
 
@@ -504,6 +500,9 @@ export const getAvailableBeds = async (req: AuthRequest, res: Response) => {
 // Get bed statistics
 export const getBedStats = async (req: AuthRequest, res: Response) => {
   try {
+    // Get hospital ID for filtering
+    const hospitalId = await getRequiredHospitalId();
+    
     const [
       totalBeds,
       bedsByType,
@@ -511,15 +510,30 @@ export const getBedStats = async (req: AuthRequest, res: Response) => {
       availableBeds,
       bedsByWard,
     ] = await Promise.all([
-      prisma.bed.count(),
+      prisma.bed.count({
+        where: { ward: { hospitalId } },
+      }),
       prisma.bed.groupBy({
         by: ['bedType'],
+        where: { ward: { hospitalId } },
         _count: { bedType: true },
       }),
-      prisma.bed.count({ where: { isOccupied: true } }),
-      prisma.bed.count({ where: { isOccupied: false, isActive: true } }),
+      prisma.bed.count({ 
+        where: { 
+          isOccupied: true,
+          ward: { hospitalId },
+        } 
+      }),
+      prisma.bed.count({ 
+        where: { 
+          isOccupied: false, 
+          isActive: true,
+          ward: { hospitalId },
+        } 
+      }),
       prisma.bed.groupBy({
         by: ['wardId'],
+        where: { ward: { hospitalId } },
         _count: { wardId: true },
       }),
     ]);

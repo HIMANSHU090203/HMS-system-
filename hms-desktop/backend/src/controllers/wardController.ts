@@ -1,7 +1,9 @@
 import { Response } from 'express';
+import { logAudit } from '../utils/auditLogger';
 import { PrismaClient, WardType, BedType } from '@prisma/client';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
+import { getRequiredHospitalId, getHospitalId } from '../utils/hospitalHelper';
 
 const prisma = new PrismaClient();
 
@@ -38,9 +40,15 @@ export const createWard = async (req: AuthRequest, res: Response) => {
   try {
     const validatedData = wardCreateSchema.parse(req.body);
 
-    // Check if ward name already exists
-    const existingWard = await prisma.ward.findUnique({
-      where: { name: validatedData.name },
+    // Get hospital ID
+    const hospitalId = await getRequiredHospitalId();
+
+    // Check if ward name already exists for this hospital
+    const existingWard = await prisma.ward.findFirst({
+      where: { 
+        name: validatedData.name,
+        hospitalId: hospitalId,
+      },
     });
 
     if (existingWard) {
@@ -76,6 +84,7 @@ export const createWard = async (req: AuthRequest, res: Response) => {
       const newWard = await tx.ward.create({
         data: {
           name: validatedData.name,
+          hospitalId: hospitalId,
           type: validatedData.type,
           capacity: validatedData.capacity,
           description: validatedData.description,
@@ -126,8 +135,8 @@ export const createWard = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
+    try {
+      await logAudit({
         userId: req.user!.id,
         action: 'CREATE_WARD',
         tableName: 'wards',
@@ -138,8 +147,10 @@ export const createWard = async (req: AuthRequest, res: Response) => {
           capacity: result.capacity,
           bedsCreated: result.beds.length,
         },
-      },
-    });
+      });
+    } catch (auditError: any) {
+      console.warn('Failed to create audit log for ward creation:', auditError.message);
+    }
 
     console.log(`✅ Created ward "${result.name}" with ${result.beds.length} beds (capacity: ${result.capacity})`);
 
@@ -170,10 +181,15 @@ export const getWards = async (req: AuthRequest, res: Response) => {
   try {
     const { search, type, isActive, page = 1, limit = 20 } = wardSearchSchema.parse(req.query);
     
+    // Get hospital ID
+    const hospitalId = await getRequiredHospitalId();
+    
     const skip = (page - 1) * limit;
     
     // Build where clause
-    const where: any = {};
+    const where: any = {
+      hospitalId: hospitalId, // Filter by hospital
+    };
     
     if (search) {
       where.OR = [
@@ -278,7 +294,7 @@ export const getWardById = async (req: AuthRequest, res: Response) => {
               select: {
                 id: true,
                 name: true,
-                age: true,
+                dateOfBirth: true,
                 gender: true,
               },
             },
@@ -335,8 +351,22 @@ export const updateWard = async (req: AuthRequest, res: Response) => {
 
     // Check if name is being changed and if it already exists
     if (validatedData.name && validatedData.name !== existingWard.name) {
+      // Get hospital ID for unique constraint check
+      const hospitalId = await getHospitalId();
+      if (!hospitalId) {
+        return res.status(500).json({
+          success: false,
+          message: 'Hospital configuration not found',
+        });
+      }
+
       const duplicateWard = await prisma.ward.findUnique({
-        where: { name: validatedData.name },
+        where: { 
+          hospitalId_name: {
+            hospitalId: hospitalId,
+            name: validatedData.name,
+          }
+        },
       });
 
       if (duplicateWard) {
@@ -360,6 +390,7 @@ export const updateWard = async (req: AuthRequest, res: Response) => {
         'CARDIAC': 'ICU',
         'NEUROLOGY': 'GENERAL',
         'ORTHOPEDIC': 'GENERAL',
+        'DAY_CARE': 'GENERAL',
       };
       return wardTypeToBedType[wardType] || 'GENERAL';
     };
@@ -474,24 +505,22 @@ export const updateWard = async (req: AuthRequest, res: Response) => {
     const updatedWard = result!;
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'UPDATE_WARD',
-        tableName: 'wards',
-        recordId: id,
-        oldValue: {
-          name: existingWard.name,
-          type: existingWard.type,
-          capacity: existingWard.capacity,
-          isActive: existingWard.isActive,
-        },
-        newValue: {
-          name: updatedWard.name,
-          type: updatedWard.type,
-          capacity: updatedWard.capacity,
-          isActive: updatedWard.isActive,
-        },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'UPDATE_WARD',
+      tableName: 'wards',
+      recordId: id,
+      oldValue: {
+        name: existingWard.name,
+        type: existingWard.type,
+        capacity: existingWard.capacity,
+        isActive: existingWard.isActive,
+      },
+      newValue: {
+        name: updatedWard.name,
+        type: updatedWard.type,
+        capacity: updatedWard.capacity,
+        isActive: updatedWard.isActive,
       },
     });
 
@@ -619,19 +648,17 @@ export const deleteWard = async (req: AuthRequest, res: Response) => {
 
     // Log the action
     try {
-      await prisma.auditLog.create({
-        data: {
-          userId: req.user!.id,
-          action: 'DELETE_WARD',
-          tableName: 'wards',
-          recordId: id,
-          oldValue: {
-            name: existingWard.name,
-            type: existingWard.type,
-            capacity: existingWard.capacity,
-            bedsDeleted: bedCount,
-            activeAdmissions: activeAdmissions,
-          },
+      await logAudit({
+        userId: req.user!.id,
+        action: 'DELETE_WARD',
+        tableName: 'wards',
+        recordId: id,
+        oldValue: {
+          name: existingWard.name,
+          type: existingWard.type,
+          capacity: existingWard.capacity,
+          bedsDeleted: bedCount,
+          activeAdmissions: activeAdmissions,
         },
       });
     } catch (auditError) {
@@ -668,6 +695,9 @@ export const deleteWard = async (req: AuthRequest, res: Response) => {
 // Get ward statistics
 export const getWardStats = async (req: AuthRequest, res: Response) => {
   try {
+    // Get hospital ID for filtering
+    const hospitalId = await getRequiredHospitalId();
+    
     const [
       totalWards,
       wardsByType,
@@ -676,22 +706,26 @@ export const getWardStats = async (req: AuthRequest, res: Response) => {
       totalOccupancy,
       availableBeds,
     ] = await Promise.all([
-      prisma.ward.count(),
+      prisma.ward.count({ where: { hospitalId } }),
       prisma.ward.groupBy({
         by: ['type'],
+        where: { hospitalId },
         _count: { type: true },
       }),
-      prisma.ward.count({ where: { isActive: true } }),
+      prisma.ward.count({ where: { isActive: true, hospitalId } }),
       prisma.ward.aggregate({
+        where: { hospitalId },
         _sum: { capacity: true },
       }),
       prisma.ward.aggregate({
+        where: { hospitalId },
         _sum: { currentOccupancy: true },
       }),
       prisma.bed.count({
         where: {
           isOccupied: false,
           isActive: true,
+          ward: { hospitalId },
         },
       }),
     ]);

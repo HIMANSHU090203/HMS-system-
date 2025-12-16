@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { logAudit } from '../utils/auditLogger';
 import { PrismaClient, ShiftType } from '@prisma/client';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
@@ -93,7 +94,7 @@ export const createNursingShift = async (req: AuthRequest, res: Response) => {
               select: {
                 id: true,
                 name: true,
-                age: true,
+                dateOfBirth: true,
                 gender: true,
               },
             },
@@ -123,18 +124,16 @@ export const createNursingShift = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'CREATE_NURSING_SHIFT',
-        tableName: 'nursing_shifts',
-        recordId: nursingShift.id,
-        newValue: {
-          admissionId: nursingShift.admissionId,
-          nurseId: nursingShift.nurseId,
-          shiftType: nursingShift.shiftType,
-          shiftDate: nursingShift.shiftDate,
-        },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'CREATE_NURSING_SHIFT',
+      tableName: 'nursing_shifts',
+      recordId: nursingShift.id,
+      newValue: {
+        admissionId: nursingShift.admissionId,
+        nurseId: nursingShift.nurseId,
+        shiftType: nursingShift.shiftType,
+        shiftDate: nursingShift.shiftDate,
       },
     });
 
@@ -186,7 +185,7 @@ export const getNursingShifts = async (req: AuthRequest, res: Response) => {
                 select: {
                   id: true,
                   name: true,
-                  age: true,
+                  dateOfBirth: true,
                   gender: true,
                 },
               },
@@ -320,7 +319,7 @@ export const updateNursingShift = async (req: AuthRequest, res: Response) => {
               select: {
                 id: true,
                 name: true,
-                age: true,
+                dateOfBirth: true,
                 gender: true,
               },
             },
@@ -350,15 +349,13 @@ export const updateNursingShift = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'UPDATE_NURSING_SHIFT',
-        tableName: 'nursing_shifts',
-        recordId: nursingShift.id,
-        oldValue: existingShift,
-        newValue: nursingShift,
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'UPDATE_NURSING_SHIFT',
+      tableName: 'nursing_shifts',
+      recordId: nursingShift.id,
+      oldValue: existingShift,
+      newValue: nursingShift,
     });
 
     res.status(200).json({
@@ -404,14 +401,12 @@ export const deleteNursingShift = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'DELETE_NURSING_SHIFT',
-        tableName: 'nursing_shifts',
-        recordId: id,
-        oldValue: nursingShift,
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'DELETE_NURSING_SHIFT',
+      tableName: 'nursing_shifts',
+      recordId: id,
+      oldValue: nursingShift,
     });
 
     res.status(200).json({

@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { logAudit } from '../utils/auditLogger';
 import { PrismaClient, AdmissionType, AdmissionStatus } from '@prisma/client';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
@@ -152,7 +153,7 @@ export const createAdmission = async (req: AuthRequest, res: Response) => {
             select: {
               id: true,
               name: true,
-              age: true,
+              dateOfBirth: true,
               gender: true,
               phone: true,
             },
@@ -207,19 +208,17 @@ export const createAdmission = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'CREATE_ADMISSION',
-        tableName: 'admissions',
-        recordId: result.id,
-        newValue: {
-          patientId: result.patientId,
-          wardId: result.wardId,
-          bedId: result.bedId,
-          admissionType: result.admissionType,
-          status: result.status,
-        },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'CREATE_ADMISSION',
+      tableName: 'admissions',
+      recordId: result.id,
+      newValue: {
+        patientId: result.patientId,
+        wardId: result.wardId,
+        bedId: result.bedId,
+        admissionType: result.admissionType,
+        status: result.status,
       },
     });
 
@@ -291,7 +290,7 @@ export const getAdmissions = async (req: AuthRequest, res: Response) => {
             select: {
               id: true,
               name: true,
-              age: true,
+              dateOfBirth: true,
               gender: true,
               phone: true,
             },
@@ -374,7 +373,7 @@ export const getAdmissionById = async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
             phone: true,
             address: true,
@@ -505,7 +504,7 @@ export const updateAdmission = async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
             phone: true,
           },
@@ -542,22 +541,20 @@ export const updateAdmission = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'UPDATE_ADMISSION',
-        tableName: 'admissions',
-        recordId: id,
-        oldValue: {
-          wardId: existingAdmission.wardId,
-          bedId: existingAdmission.bedId,
-          status: existingAdmission.status,
-        },
-        newValue: {
-          wardId: updatedAdmission.wardId,
-          bedId: updatedAdmission.bedId,
-          status: updatedAdmission.status,
-        },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'UPDATE_ADMISSION',
+      tableName: 'admissions',
+      recordId: id,
+      oldValue: {
+        wardId: existingAdmission.wardId,
+        bedId: existingAdmission.bedId,
+        status: existingAdmission.status,
+      },
+      newValue: {
+        wardId: updatedAdmission.wardId,
+        bedId: updatedAdmission.bedId,
+        status: updatedAdmission.status,
       },
     });
 
@@ -639,7 +636,7 @@ export const dischargePatient = async (req: AuthRequest, res: Response) => {
             select: {
               id: true,
               name: true,
-              age: true,
+              dateOfBirth: true,
               gender: true,
               phone: true,
             },
@@ -701,21 +698,19 @@ export const dischargePatient = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'DISCHARGE_PATIENT',
-        tableName: 'admissions',
-        recordId: id,
-        oldValue: {
-          status: 'ADMITTED',
-          dischargeDate: null,
-        },
-        newValue: {
-          status: 'DISCHARGED',
-          dischargeDate: result.dischargeDate,
-          dischargedBy: req.user!.id,
-        },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'DISCHARGE_PATIENT',
+      tableName: 'admissions',
+      recordId: id,
+      oldValue: {
+        status: 'ADMITTED',
+        dischargeDate: null,
+      },
+      newValue: {
+        status: 'DISCHARGED',
+        dischargeDate: result.dischargeDate,
+        dischargedBy: req.user!.id,
       },
     });
 
@@ -842,7 +837,7 @@ export const getCurrentAdmissions = async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
             phone: true,
           },

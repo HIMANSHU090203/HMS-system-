@@ -15,6 +15,10 @@ class AppointmentService {
       '/appointments',
       appointmentData
     );
+    // Check if response is successful
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to create appointment');
+    }
     return response.data.data.appointment;
   }
 
@@ -48,6 +52,10 @@ class AppointmentService {
       `/appointments/${id}`,
       appointmentData
     );
+    // Check if response is successful
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to update appointment');
+    }
     return response.data.data.appointment;
   }
 

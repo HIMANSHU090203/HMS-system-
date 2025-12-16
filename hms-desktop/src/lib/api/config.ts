@@ -59,12 +59,21 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
 
       // Clear invalid tokens
+      const hadToken = !!localStorage.getItem('accessToken');
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
 
-      // Don't auto-reload immediately - let components handle the error for better UX
-      // Components can show error messages and reload after showing the message
-      console.warn('Authentication failed - token cleared. Component should handle reload.');
+      // Only log if there was a token (to avoid spam on public routes)
+      if (hadToken) {
+        console.warn('Authentication failed - token expired or invalid. Please log in again.');
+        
+        // If we're not already on the login page, trigger a reload to show login
+        // This will be handled by App.tsx's checkAuthStatus
+        if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
+          // Don't reload immediately - let the component handle it
+          // The App component will detect the missing token and show login
+        }
+      }
     }
 
     // Handle network errors

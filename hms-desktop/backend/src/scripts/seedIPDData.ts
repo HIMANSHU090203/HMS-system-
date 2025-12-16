@@ -1,5 +1,6 @@
 import { PrismaClient, WardType, BedType, UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { getHospitalId } from '../utils/hospitalHelper';
 
 const prisma = new PrismaClient();
 
@@ -123,15 +124,30 @@ async function seedIPDData() {
       },
     ];
 
+    // Get hospital ID
+    const hospitalId = await getHospitalId();
+    if (!hospitalId) {
+      console.error('❌ Hospital ID not found. Cannot seed wards.');
+      return;
+    }
+
     const createdWards = [];
     for (const wardData of wards) {
       const existingWard = await prisma.ward.findUnique({
-        where: { name: wardData.name },
+        where: { 
+          hospitalId_name: {
+            hospitalId: hospitalId,
+            name: wardData.name,
+          }
+        },
       });
 
       if (!existingWard) {
         const ward = await prisma.ward.create({
-          data: wardData,
+          data: {
+            ...wardData,
+            hospitalId: hospitalId,
+          },
         });
         createdWards.push(ward);
         console.log(`✅ Created ward: ${ward.name}`);

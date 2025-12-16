@@ -2,13 +2,42 @@ import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
+import { logAudit } from '../utils/auditLogger';
+import { getHospitalId } from '../utils/hospitalHelper';
 
 const prisma = new PrismaClient();
+
+// Helper function to convert age to dateOfBirth (approximate - uses January 1st of birth year)
+const ageToDateOfBirth = (age: number): Date => {
+  const today = new Date();
+  const birthYear = today.getFullYear() - age;
+  // Use January 1st as approximate date of birth
+  return new Date(birthYear, 0, 1);
+};
 
 // Validation schemas
 const patientCreateSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
-  age: z.number().int().min(0, 'Age must be positive').max(150, 'Invalid age'),
+  dateOfBirth: z.union([
+    z.string().refine((date) => {
+    const dob = new Date(date);
+    const today = new Date();
+    return dob <= today && !isNaN(dob.getTime());
+  }, 'Date of birth must be a valid date in the past').transform((date) => new Date(date)),
+    z.date()
+  ]).optional(),
+  age: z.union([
+    z.number().int().min(0).max(150),
+    z.string().transform((val) => {
+      const trimmed = val.trim();
+      if (!trimmed) return undefined;
+      const num = parseInt(trimmed, 10);
+      if (isNaN(num) || num < 0 || num > 150) {
+        throw new Error('Age must be a number between 0 and 150');
+      }
+      return num;
+    }).optional()
+  ]).optional(),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER'], { message: 'Invalid gender' }),
   phone: z.string().min(10, 'Phone number too short').max(15, 'Phone number too long'),
   address: z.string().min(1, 'Address is required').max(500, 'Address too long'),
@@ -17,9 +46,30 @@ const patientCreateSchema = z.object({
   chronicConditions: z.string().optional(),
   emergencyContactName: z.string().optional(),
   emergencyContactPhone: z.string().optional(),
+}).refine((data) => {
+  // At least one of dateOfBirth or age must be provided
+  const hasDateOfBirth = data.dateOfBirth !== undefined && data.dateOfBirth !== null;
+  const hasAge = data.age !== undefined && data.age !== null && data.age !== '';
+  return hasDateOfBirth || hasAge;
+}, {
+  message: 'Either dateOfBirth or age must be provided',
+  path: ['dateOfBirth']
 });
 
 const patientUpdateSchema = patientCreateSchema.partial();
+
+// Helper function to calculate age from date of birth
+const calculateAge = (dateOfBirth: Date): number => {
+  const today = new Date();
+  let age = today.getFullYear() - dateOfBirth.getFullYear();
+  const monthDiff = today.getMonth() - dateOfBirth.getMonth();
+
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dateOfBirth.getDate())) {
+    age--;
+  }
+
+  return age;
+};
 
 const patientSearchSchema = z.object({
   search: z.string().optional(),
@@ -32,11 +82,35 @@ const patientSearchSchema = z.object({
 // Create new patient
 export const createPatient = async (req: AuthRequest, res: Response) => {
   try {
+    // Log incoming request for debugging
+    console.log('[CreatePatient] Received request body:', JSON.stringify(req.body, null, 2));
+    
     const validatedData = patientCreateSchema.parse(req.body);
+    console.log('[CreatePatient] Validated data:', JSON.stringify(validatedData, null, 2));
+
+    // Convert age to dateOfBirth if age is provided but dateOfBirth is not
+    let dateOfBirth: Date;
+    if (validatedData.dateOfBirth) {
+      dateOfBirth = validatedData.dateOfBirth;
+    } else if (validatedData.age !== undefined) {
+      dateOfBirth = ageToDateOfBirth(validatedData.age);
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Either dateOfBirth or age must be provided',
+      });
+    }
+
+    // Prepare patient data (remove age field, use dateOfBirth)
+    const { age, ...patientData } = validatedData;
+    const finalPatientData = {
+      ...patientData,
+      dateOfBirth,
+    };
 
     // Check for duplicate phone number
     const existingPatient = await prisma.patient.findUnique({
-      where: { phone: validatedData.phone },
+      where: { phone: finalPatientData.phone },
     });
 
     if (existingPatient) {
@@ -49,18 +123,16 @@ export const createPatient = async (req: AuthRequest, res: Response) => {
 
     // Create patient
     const patient = await prisma.patient.create({
-      data: validatedData,
+      data: finalPatientData,
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'CREATE_PATIENT',
-        tableName: 'patients',
-        recordId: patient.id,
-        newValue: patient,
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'CREATE_PATIENT',
+      tableName: 'patients',
+      recordId: patient.id,
+      newValue: patient,
     });
 
     res.status(201).json({
@@ -76,7 +148,7 @@ export const createPatient = async (req: AuthRequest, res: Response) => {
         errors: error.issues,
       });
     }
-    
+
     console.error('Create patient error:', error);
     res.status(500).json({
       success: false,
@@ -89,12 +161,12 @@ export const createPatient = async (req: AuthRequest, res: Response) => {
 export const getPatients = async (req: AuthRequest, res: Response) => {
   try {
     const { search, gender, bloodGroup, page = 1, limit = 20 } = patientSearchSchema.parse(req.query);
-    
+
     const skip = (page - 1) * limit;
-    
+
     // Build where clause
     const where: any = {};
-    
+
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -102,11 +174,11 @@ export const getPatients = async (req: AuthRequest, res: Response) => {
         { address: { contains: search, mode: 'insensitive' } },
       ];
     }
-    
+
     if (gender) {
       where.gender = gender;
     }
-    
+
     if (bloodGroup) {
       where.bloodGroup = bloodGroup;
     }
@@ -121,7 +193,7 @@ export const getPatients = async (req: AuthRequest, res: Response) => {
         select: {
           id: true,
           name: true,
-          age: true,
+          dateOfBirth: true,
           gender: true,
           phone: true,
           address: true,
@@ -139,10 +211,16 @@ export const getPatients = async (req: AuthRequest, res: Response) => {
 
     const totalPages = Math.ceil(total / limit);
 
+    // Add calculated age to each patient
+    const patientsWithAge = patients.map(patient => ({
+      ...patient,
+      age: calculateAge(patient.dateOfBirth),
+    }));
+
     res.json({
       success: true,
       data: {
-        patients,
+        patients: patientsWithAge,
         pagination: {
           currentPage: page,
           totalPages,
@@ -161,7 +239,7 @@ export const getPatients = async (req: AuthRequest, res: Response) => {
         errors: error.issues,
       });
     }
-    
+
     console.error('Get patients error:', error);
     res.status(500).json({
       success: false,
@@ -255,10 +333,17 @@ export const updatePatient = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Convert age to dateOfBirth if age is provided but dateOfBirth is not
+    let updateData: any = { ...validatedData };
+    if (validatedData.age !== undefined && !validatedData.dateOfBirth) {
+      updateData.dateOfBirth = ageToDateOfBirth(validatedData.age);
+      delete updateData.age; // Remove age field
+    }
+
     // Check for duplicate phone number if phone is being updated
-    if (validatedData.phone && validatedData.phone !== existingPatient.phone) {
+    if (updateData.phone && updateData.phone !== existingPatient.phone) {
       const duplicatePatient = await prisma.patient.findUnique({
-        where: { phone: validatedData.phone },
+        where: { phone: updateData.phone },
       });
 
       if (duplicatePatient) {
@@ -273,19 +358,17 @@ export const updatePatient = async (req: AuthRequest, res: Response) => {
     // Update patient
     const updatedPatient = await prisma.patient.update({
       where: { id },
-      data: validatedData,
+      data: updateData,
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'UPDATE_PATIENT',
-        tableName: 'patients',
-        recordId: id,
-        oldValue: existingPatient,
-        newValue: updatedPatient,
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'UPDATE_PATIENT',
+      tableName: 'patients',
+      recordId: id,
+      oldValue: existingPatient,
+      newValue: updatedPatient,
     });
 
     res.json({
@@ -301,7 +384,7 @@ export const updatePatient = async (req: AuthRequest, res: Response) => {
         errors: error.issues,
       });
     }
-    
+
     console.error('Update patient error:', error);
     res.status(500).json({
       success: false,
@@ -340,8 +423,8 @@ export const deletePatient = async (req: AuthRequest, res: Response) => {
       prisma.dischargeSummary.count({ where: { patientId: id } }),
     ]);
 
-    const hasRelatedRecords = appointments > 0 || consultations > 0 || prescriptions > 0 || labTests > 0 || 
-                              bills > 0 || admissions > 0 || inpatientBills > 0 || dischargeSummaries > 0;
+    const hasRelatedRecords = appointments > 0 || consultations > 0 || prescriptions > 0 || labTests > 0 ||
+      bills > 0 || admissions > 0 || inpatientBills > 0 || dischargeSummaries > 0;
 
     // If force delete is requested, allow deletion with cascade (schema has onDelete: Cascade)
     if (hasRelatedRecords && force !== 'true') {
@@ -355,7 +438,7 @@ export const deletePatient = async (req: AuthRequest, res: Response) => {
         inpatientBills,
         dischargeSummaries,
       };
-      
+
       const recordTypes = Object.entries(recordCounts)
         .filter(([_, count]) => count > 0)
         .map(([type, count]) => `${type}: ${count}`)
@@ -392,14 +475,12 @@ export const deletePatient = async (req: AuthRequest, res: Response) => {
 
     // Log the action (with error handling to prevent deletion failure)
     try {
-      await prisma.auditLog.create({
-        data: {
-          userId: req.user!.id,
-          action: 'DELETE_PATIENT',
-          tableName: 'patients',
-          recordId: id,
-          oldValue: existingPatient,
-        },
+      await logAudit({
+        userId: req.user!.id,
+        action: 'DELETE_PATIENT',
+        tableName: 'patients',
+        recordId: id,
+        oldValue: existingPatient,
       });
     } catch (auditError) {
       console.warn('Failed to create audit log for patient deletion:', auditError);
@@ -438,7 +519,7 @@ export const searchPatientByPhone = async (req: AuthRequest, res: Response) => {
       select: {
         id: true,
         name: true,
-        age: true,
+        dateOfBirth: true,
         gender: true,
         phone: true,
         address: true,
@@ -476,18 +557,38 @@ export const getPatientStats = async (req: AuthRequest, res: Response) => {
         by: ['gender'],
         _count: { gender: true },
       }),
-      prisma.patient.groupBy({
-        by: ['age'],
-        _count: { age: true },
-      }).then(results => 
-        results.map(result => ({
-          age_group: result.age < 18 ? 'Under 18' :
-                    result.age <= 30 ? '18-30' :
-                    result.age <= 50 ? '31-50' :
-                    result.age <= 70 ? '51-70' : 'Over 70',
-          count: result._count.age
-        }))
-      ),
+      prisma.patient.findMany({
+        select: { dateOfBirth: true },
+      }).then(patients => {
+        // Calculate age groups from dateOfBirth
+        const ageGroups: Record<string, number> = {
+          'Under 18': 0,
+          '18-30': 0,
+          '31-50': 0,
+          '51-70': 0,
+          'Over 70': 0,
+        };
+        
+        patients.forEach(patient => {
+          const age = calculateAge(patient.dateOfBirth);
+          if (age < 18) {
+            ageGroups['Under 18']++;
+          } else if (age <= 30) {
+            ageGroups['18-30']++;
+          } else if (age <= 50) {
+            ageGroups['31-50']++;
+          } else if (age <= 70) {
+            ageGroups['51-70']++;
+          } else {
+            ageGroups['Over 70']++;
+          }
+        });
+        
+        return Object.entries(ageGroups).map(([age_group, count]) => ({
+          age_group,
+          count,
+        }));
+      }),
       prisma.patient.count({
         where: {
           createdAt: {

@@ -14,46 +14,9 @@ async function main() {
   console.log('🌱 Starting database seeding...');
 
   // NOTE: Admin user creation is now handled by the setup/onboarding flow
-  // This seed file only creates catalog data and system configs
+  // This seed file only creates catalog data
   console.log('ℹ️  Admin user will be created during first-time setup');
-
-  // Create default system configuration
-  const systemConfigs = [
-    {
-      configKey: 'hospital_name',
-      configValue: 'HMS Hospital',
-    },
-    {
-      configKey: 'hospital_address',
-      configValue: '123 Medical Street, Healthcare City',
-    },
-    {
-      configKey: 'tax_rate',
-      configValue: '18',
-    },
-    {
-      configKey: 'default_currency',
-      configValue: 'INR',
-    },
-    {
-      configKey: 'appointment_duration',
-      configValue: '30',
-    },
-    {
-      configKey: 'low_stock_threshold',
-      configValue: '10',
-    },
-  ];
-
-  for (const config of systemConfigs) {
-    await prisma.systemConfig.upsert({
-      where: { configKey: config.configKey },
-      update: { configValue: config.configValue },
-      create: config,
-    });
-  }
-
-  console.log('✅ System configuration created');
+  console.log('ℹ️  System configuration is handled by HospitalConfig model');
 
   // Seed Allergy Catalog
   console.log('📝 Seeding allergy catalog...');

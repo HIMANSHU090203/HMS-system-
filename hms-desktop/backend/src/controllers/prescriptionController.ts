@@ -222,7 +222,7 @@ export const createPrescription = async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
           },
         },
@@ -386,7 +386,7 @@ export const getPrescriptions = async (req: AuthRequest, res: Response) => {
             select: {
               id: true,
               name: true,
-              age: true,
+              dateOfBirth: true,
               gender: true,
               phone: true,
             },
@@ -451,7 +451,7 @@ export const getPrescriptionById = async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
             phone: true,
             address: true,
@@ -578,7 +578,7 @@ export const dispensePrescription = async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
           },
         },
@@ -701,7 +701,7 @@ export const cancelPrescription = async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
           },
         },

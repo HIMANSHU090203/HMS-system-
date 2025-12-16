@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { PrismaClient, AppointmentStatus, UserRole } from '@prisma/client';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
+import { logAudit } from '../utils/auditLogger';
 
 const prisma = new PrismaClient();
 
@@ -59,10 +60,19 @@ export const createAppointment = async (req: AuthRequest, res: Response) => {
     }
 
     // Check for appointment conflicts (same doctor, same date/time)
+    // Normalize date to start of day for accurate comparison
+    const appointmentDate = new Date(validatedData.date);
+    appointmentDate.setHours(0, 0, 0, 0);
+    const nextDay = new Date(appointmentDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+
     const conflictingAppointment = await prisma.appointment.findFirst({
       where: {
         doctorId: validatedData.doctorId,
-        date: new Date(validatedData.date),
+        date: {
+          gte: appointmentDate,
+          lt: nextDay,
+        },
         time: validatedData.time,
         status: {
           not: AppointmentStatus.CANCELLED,
@@ -90,7 +100,7 @@ export const createAppointment = async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
             phone: true,
           },
@@ -106,14 +116,12 @@ export const createAppointment = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'CREATE_APPOINTMENT',
-        tableName: 'appointments',
-        recordId: appointment.id,
-        newValue: appointment,
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'CREATE_APPOINTMENT',
+      tableName: 'appointments',
+      recordId: appointment.id,
+      newValue: appointment,
     });
 
     res.status(201).json({
@@ -148,12 +156,17 @@ export const getAppointments = async (req: AuthRequest, res: Response) => {
     // Build where clause
     const where: any = {};
     
-    if (patientId) {
-      where.patientId = patientId;
+    // If user is a DOCTOR, automatically filter by their doctorId
+    // Only ADMIN and other roles can see all appointments
+    if (req.user && req.user.role === UserRole.DOCTOR) {
+      where.doctorId = req.user.id;
+    } else if (doctorId) {
+      // For non-doctors, allow filtering by doctorId if provided
+      where.doctorId = doctorId;
     }
     
-    if (doctorId) {
-      where.doctorId = doctorId;
+    if (patientId) {
+      where.patientId = patientId;
     }
     
     if (date) {
@@ -186,7 +199,7 @@ export const getAppointments = async (req: AuthRequest, res: Response) => {
             select: {
               id: true,
               name: true,
-              age: true,
+              dateOfBirth: true,
               gender: true,
               phone: true,
             },
@@ -248,7 +261,7 @@ export const getAppointmentById = async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
             phone: true,
             address: true,
@@ -290,6 +303,14 @@ export const getAppointmentById = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // If user is a DOCTOR, ensure they can only access their own appointments
+    if (req.user && req.user.role === UserRole.DOCTOR && appointment.doctorId !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only view your own appointments.',
+      });
+    }
+
     res.json({
       success: true,
       data: { appointment },
@@ -321,16 +342,33 @@ export const updateAppointment = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // If user is a DOCTOR, ensure they can only update their own appointments
+    if (req.user && req.user.role === UserRole.DOCTOR && existingAppointment.doctorId !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only update your own appointments.',
+      });
+    }
+
     // If updating date/time, check for conflicts
     if (validatedData.date || validatedData.time) {
       const newDate = validatedData.date ? new Date(validatedData.date) : existingAppointment.date;
       const newTime = validatedData.time || existingAppointment.time;
 
+      // Normalize date to start of day for accurate comparison
+      const appointmentDate = new Date(newDate);
+      appointmentDate.setHours(0, 0, 0, 0);
+      const nextDay = new Date(appointmentDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+
       const conflictingAppointment = await prisma.appointment.findFirst({
         where: {
           id: { not: id },
           doctorId: existingAppointment.doctorId,
-          date: newDate,
+          date: {
+            gte: appointmentDate,
+            lt: nextDay,
+          },
           time: newTime,
           status: {
             not: AppointmentStatus.CANCELLED,
@@ -362,7 +400,7 @@ export const updateAppointment = async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
             phone: true,
           },
@@ -378,15 +416,13 @@ export const updateAppointment = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'UPDATE_APPOINTMENT',
-        tableName: 'appointments',
-        recordId: id,
-        oldValue: existingAppointment,
-        newValue: updatedAppointment,
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'UPDATE_APPOINTMENT',
+      tableName: 'appointments',
+      recordId: id,
+      oldValue: existingAppointment,
+      newValue: updatedAppointment,
     });
 
     res.json({
@@ -428,6 +464,14 @@ export const deleteAppointment = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // If user is a DOCTOR, ensure they can only delete their own appointments
+    if (req.user && req.user.role === UserRole.DOCTOR && existingAppointment.doctorId !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only delete your own appointments.',
+      });
+    }
+
     // Check if appointment has related records
     const [consultations, prescriptions] = await Promise.all([
       prisma.consultation.count({ where: { appointmentId: id } }),
@@ -454,14 +498,12 @@ export const deleteAppointment = async (req: AuthRequest, res: Response) => {
 
     // Log the action (with error handling to prevent deletion failure)
     try {
-      await prisma.auditLog.create({
-        data: {
-          userId: req.user!.id,
-          action: 'DELETE_APPOINTMENT',
-          tableName: 'appointments',
-          recordId: id,
-          oldValue: existingAppointment,
-        },
+      await logAudit({
+        userId: req.user!.id,
+        action: 'DELETE_APPOINTMENT',
+        tableName: 'appointments',
+        recordId: id,
+        oldValue: existingAppointment,
       });
     } catch (auditError) {
       console.warn('Failed to create audit log for appointment deletion:', auditError);
@@ -514,27 +556,41 @@ export const getAvailableDoctors = async (req: AuthRequest, res: Response) => {
 // Get appointment statistics
 export const getAppointmentStats = async (req: AuthRequest, res: Response) => {
   try {
+    // Build base where clause for doctor filtering
+    const baseWhere: any = {};
+    if (req.user && req.user.role === UserRole.DOCTOR) {
+      baseWhere.doctorId = req.user.id;
+    }
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
     const [
       totalAppointments,
       appointmentsByStatus,
       todayAppointments,
       upcomingAppointments,
     ] = await Promise.all([
-      prisma.appointment.count(),
+      prisma.appointment.count({ where: baseWhere }),
       prisma.appointment.groupBy({
         by: ['status'],
+        where: baseWhere,
         _count: { status: true },
       }),
       prisma.appointment.count({
         where: {
+          ...baseWhere,
           date: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)),
-            lt: new Date(new Date().setHours(23, 59, 59, 999)),
+            gte: todayStart,
+            lte: todayEnd,
           },
         },
       }),
       prisma.appointment.count({
         where: {
+          ...baseWhere,
           date: {
             gte: new Date(),
           },

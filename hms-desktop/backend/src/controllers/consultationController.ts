@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { logAudit } from '../utils/auditLogger';
 import { PrismaClient, UserRole } from '@prisma/client';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
@@ -85,10 +86,17 @@ export const createConsultation = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Fetch default consultation fee from hospital config
+    const hospitalConfig = await prisma.hospitalConfig.findFirst();
+    const defaultFee = hospitalConfig?.defaultConsultationFee 
+      ? Number(hospitalConfig.defaultConsultationFee) 
+      : 0;
+
     // Create consultation
     const consultation = await prisma.consultation.create({
       data: {
         ...validatedData,
+        fee: defaultFee,
         consultationDate: new Date(),
       },
       include: {
@@ -104,7 +112,7 @@ export const createConsultation = async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
             phone: true,
             bloodGroup: true,
@@ -129,14 +137,12 @@ export const createConsultation = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'CREATE_CONSULTATION',
-        tableName: 'consultations',
-        recordId: consultation.id,
-        newValue: consultation,
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'CREATE_CONSULTATION',
+      tableName: 'consultations',
+      recordId: consultation.id,
+      newValue: consultation,
     });
 
     res.status(201).json({
@@ -210,7 +216,7 @@ export const getConsultations = async (req: AuthRequest, res: Response) => {
             select: {
               id: true,
               name: true,
-              age: true,
+              dateOfBirth: true,
               gender: true,
               phone: true,
               bloodGroup: true,
@@ -281,7 +287,7 @@ export const getConsultationById = async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
             phone: true,
             address: true,
@@ -365,7 +371,7 @@ export const updateConsultation = async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
             phone: true,
             bloodGroup: true,
@@ -382,15 +388,13 @@ export const updateConsultation = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'UPDATE_CONSULTATION',
-        tableName: 'consultations',
-        recordId: id,
-        oldValue: existingConsultation,
-        newValue: updatedConsultation,
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'UPDATE_CONSULTATION',
+      tableName: 'consultations',
+      recordId: id,
+      oldValue: existingConsultation,
+      newValue: updatedConsultation,
     });
 
     res.json({
@@ -434,7 +438,7 @@ export const deleteConsultation = async (req: AuthRequest, res: Response) => {
 
     // Check if consultation has related prescriptions
     const prescriptions = await prisma.prescription.count({ 
-      where: { consultationId: id } 
+      where: { consultationId: id }
     });
 
     if (prescriptions > 0) {
@@ -452,14 +456,12 @@ export const deleteConsultation = async (req: AuthRequest, res: Response) => {
 
     // Log the action (with error handling to prevent deletion failure)
     try {
-      await prisma.auditLog.create({
-        data: {
-          userId: req.user!.id,
-          action: 'DELETE_CONSULTATION',
-          tableName: 'consultations',
-          recordId: id,
-          oldValue: existingConsultation,
-        },
+      await logAudit({
+        userId: req.user!.id,
+        action: 'DELETE_CONSULTATION',
+        tableName: 'consultations',
+        recordId: id,
+        oldValue: existingConsultation,
       });
     } catch (auditError) {
       console.warn('Failed to create audit log for consultation deletion:', auditError);

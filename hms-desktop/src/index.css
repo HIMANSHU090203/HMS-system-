@@ -4,35 +4,35 @@
 
 @layer base {
   :root {
-    /* Software-style minimal color scheme */
-    --background: 249 250 251; /* Light gray */
-    --foreground: 17 24 39; /* Dark gray/black */
+    /* Desktop Software Color Scheme - More muted and professional */
+    --background: 240 240 240; /* Windows-style light gray */
+    --foreground: 0 0 0; /* Pure black for text */
     --card: 255 255 255; /* White */
-    --card-foreground: 17 24 39;
+    --card-foreground: 0 0 0;
     
-    /* Primary color - Professional Blue */
-    --primary: 37 99 235; /* Professional blue */
+    /* Primary color - System Blue (Windows style) */
+    --primary: 0 120 215; /* Windows 10/11 blue */
     --primary-foreground: 255 255 255;
     
-    /* Secondary - Neutral Gray */
-    --secondary: 229 231 235; /* Light gray */
-    --secondary-foreground: 17 24 39;
+    /* Secondary - System Gray */
+    --secondary: 243 243 243; /* Light gray */
+    --secondary-foreground: 0 0 0;
     
-    /* Accent - Soft Blue (for highlights) */
-    --accent: 59 130 246; /* Softer blue */
+    /* Accent - Hover Blue */
+    --accent: 0 102 204; /* Darker blue for hover */
     --accent-foreground: 255 255 255;
     
-    /* Destructive - Red for deletions */
-    --destructive: 239 68 68; /* Red */
+    /* Destructive - System Red */
+    --destructive: 196 43 28; /* Windows error red */
     --destructive-foreground: 255 255 255;
     
-    /* Borders and UI elements */
-    --border: 229 231 235; /* Light gray border */
-    --input: 229 231 235;
-    --muted: 243 244 246; /* Very light gray */
-    --muted-foreground: 107 114 128; /* Medium gray text */
+    /* Borders and UI elements - Desktop style */
+    --border: 200 200 200; /* Medium gray border */
+    --input: 255 255 255; /* White input background */
+    --muted: 245 245 245; /* Very light gray */
+    --muted-foreground: 96 96 96; /* Medium gray text */
     
-    --radius: 4px;
+    --radius: 2px; /* Minimal rounding for desktop feel */
   }
 }
 
@@ -42,67 +42,121 @@
   }
   
   body {
-    @apply bg-[#F9FAFB] text-[#111827];
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    @apply bg-[#F0F0F0] text-black;
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 13px; /* Desktop standard font size */
     margin: 0;
     padding: 0;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Software-style components */
+  /* Desktop Software Components */
   .window-container {
-    @apply bg-white rounded-none border-0 shadow-none;
+    @apply bg-white border border-[#C8C8C8] shadow-none;
+    border-radius: 0; /* No rounded corners */
   }
   
   .window-header {
-    @apply bg-[#F3F4F6] border-b border-[#E5E7EB] px-4 py-3;
+    @apply bg-[#F3F3F3] border-b border-[#C8C8C8] px-3 py-2;
+    border-radius: 0;
   }
   
   .window-content {
-    @apply bg-white p-6;
+    @apply bg-white p-3; /* Reduced padding */
   }
   
+  /* Native-looking buttons */
   .btn-primary {
-    @apply bg-[#2563EB] text-white px-4 py-2 rounded text-sm font-medium hover:bg-[#1D4ED8] active:bg-[#1E40AF];
+    @apply bg-[#0078D4] text-white px-3 py-1.5 border border-[#005A9E] text-sm font-normal;
+    border-radius: 2px;
+    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+  }
+  
+  .btn-primary:hover {
+    @apply bg-[#005A9E];
+  }
+  
+  .btn-primary:active {
+    @apply bg-[#004578];
+    box-shadow: inset 0 1px 2px 0 rgba(0, 0, 0, 0.2);
   }
   
   .btn-secondary {
-    @apply bg-[#F3F4F6] text-[#111827] px-4 py-2 rounded text-sm font-medium hover:bg-[#E5E7EB] active:bg-[#D1D5DB];
+    @apply bg-[#F3F3F3] text-black px-3 py-1.5 border border-[#C8C8C8] text-sm font-normal;
+    border-radius: 2px;
+    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.5);
+  }
+  
+  .btn-secondary:hover {
+    @apply bg-[#E8E8E8];
+  }
+  
+  .btn-secondary:active {
+    @apply bg-[#DADADA];
+    box-shadow: inset 0 1px 2px 0 rgba(0, 0, 0, 0.1);
   }
   
   .btn-danger {
-    @apply bg-[#EF4444] text-white px-4 py-2 rounded text-sm font-medium hover:bg-[#DC2626] active:bg-[#B91C1C];
+    @apply bg-[#C4281C] text-white px-3 py-1.5 border border-[#A01A0F] text-sm font-normal;
+    border-radius: 2px;
+    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
   }
   
+  .btn-danger:hover {
+    @apply bg-[#A01A0F];
+  }
+  
+  /* Native input fields */
   .input-field {
-    @apply w-full px-3 py-2 border border-[#D1D5DB] rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#2563EB] focus:border-[#2563EB];
+    @apply w-full px-2 py-1.5 border border-[#C8C8C8] bg-white text-sm;
+    border-radius: 2px;
+    box-shadow: inset 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   }
   
+  .input-field:focus {
+    @apply outline-none border-[#0078D4];
+    box-shadow: 0 0 0 1px #0078D4, inset 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  }
+  
+  /* Desktop table style */
   .table-container {
-    @apply border border-[#E5E7EB] rounded overflow-hidden;
+    @apply border border-[#C8C8C8] bg-white;
+    border-radius: 0;
+    box-shadow: none;
   }
   
   .table-header {
-    @apply bg-[#F9FAFB] border-b border-[#E5E7EB];
+    @apply bg-[#F3F3F3] border-b border-[#C8C8C8];
+    font-weight: 600;
   }
 }
 
-/* Software-style scrollbars */
+/* Desktop-style scrollbars - Windows native look */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 17px;
+  height: 17px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #F3F4F6;
+  background: #F0F0F0;
+  border-left: 1px solid #C8C8C8;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #D1D5DB;
-  border-radius: 4px;
+  background: #C8C8C8;
+  border: 1px solid #A0A0A0;
+  border-radius: 0;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #9CA3AF;
+  background: #A0A0A0;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+}
+
+::-webkit-scrollbar-corner {
+  background: #F0F0F0;
 }

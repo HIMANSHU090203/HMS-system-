@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { logAudit } from '../utils/auditLogger';
 import { PrismaClient, UserRole } from '@prisma/client';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
@@ -67,22 +68,22 @@ export const createUser = async (req: AuthRequest, res: Response) => {
         passwordHash,
         fullName: validatedData.fullName,
         role: validatedData.role,
+        email: validatedData.email || null,
+        phone: validatedData.phone || null,
         isActive: true,
       },
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'CREATE_USER',
-        tableName: 'users',
-        recordId: newUser.id,
-        newValue: {
-          username: newUser.username,
-          fullName: newUser.fullName,
-          role: newUser.role,
-        },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'CREATE_USER',
+      tableName: 'users',
+      recordId: newUser.id,
+      newValue: {
+        username: newUser.username,
+        fullName: newUser.fullName,
+        role: newUser.role,
       },
     });
 
@@ -283,24 +284,22 @@ export const updateUser = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'UPDATE_USER',
-        tableName: 'users',
-        recordId: id,
-        oldValue: {
-          username: existingUser.username,
-          fullName: existingUser.fullName,
-          role: existingUser.role,
-          isActive: existingUser.isActive,
-        },
-        newValue: {
-          username: updatedUser.username,
-          fullName: updatedUser.fullName,
-          role: updatedUser.role,
-          isActive: updatedUser.isActive,
-        },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'UPDATE_USER',
+      tableName: 'users',
+      recordId: id,
+      oldValue: {
+        username: existingUser.username,
+        fullName: existingUser.fullName,
+        role: existingUser.role,
+        isActive: existingUser.isActive,
+      },
+      newValue: {
+        username: updatedUser.username,
+        fullName: updatedUser.fullName,
+        role: updatedUser.role,
+        isActive: updatedUser.isActive,
       },
     });
 
@@ -389,20 +388,20 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
       where: { id },
     });
 
-    // Log the action after deleting the user (with null userId to avoid foreign key issues)
+    // Log the action after deleting the user (with system user to avoid foreign key issues)
     try {
-      await prisma.auditLog.create({
-        data: {
-          userId: null, // Set to null to avoid foreign key constraint
-          action: 'DELETE_USER',
-          tableName: 'users',
-          recordId: id,
-          oldValue: {
-            username: existingUser.username,
-            fullName: existingUser.fullName,
-            role: existingUser.role,
-            deletedBy: req.user!.id, // Store who deleted the user in oldValue
-          },
+      // Get system user or use a default user ID for audit logs
+      const systemUser = await prisma.user.findFirst({ where: { role: 'ADMIN' } });
+      await logAudit({
+        userId: systemUser?.id || req.user!.id,
+        action: 'DELETE_USER',
+        tableName: 'users',
+        recordId: id,
+        oldValue: {
+          username: existingUser.username,
+          fullName: existingUser.fullName,
+          role: existingUser.role,
+          deletedBy: req.user!.id, // Store who deleted the user in oldValue
         },
       });
     } catch (auditError) {
@@ -452,14 +451,12 @@ export const resetUserPassword = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'RESET_PASSWORD',
-        tableName: 'users',
-        recordId: id,
-        newValue: { passwordReset: true },
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: 'RESET_PASSWORD',
+      tableName: 'users',
+      recordId: id,
+      newValue: { passwordReset: true },
     });
 
     res.json({
@@ -524,15 +521,13 @@ export const toggleUserStatus = async (req: AuthRequest, res: Response) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: updatedUser.isActive ? 'ACTIVATE_USER' : 'DEACTIVATE_USER',
-        tableName: 'users',
-        recordId: id,
-        oldValue: { isActive: existingUser.isActive },
-        newValue: { isActive: updatedUser.isActive },
-      },
+    await logAudit({
+      userId: req.user!.id,
+      action: updatedUser.isActive ? 'ACTIVATE_USER' : 'DEACTIVATE_USER',
+      tableName: 'users',
+      recordId: id,
+      oldValue: { isActive: existingUser.isActive },
+      newValue: { isActive: updatedUser.isActive },
     });
 
     res.json({

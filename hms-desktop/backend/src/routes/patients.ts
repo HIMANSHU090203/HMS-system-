@@ -13,10 +13,22 @@ import {
 
 const router = Router();
 
-// Custom middleware to allow ADMIN, DOCTOR, RECEPTIONIST, PHARMACY, and LAB_TECH roles
+// Custom middleware to allow all roles that have patient module access
+// Based on rolePermissions: ADMIN, DOCTOR, RECEPTIONIST, PHARMACY, LAB_TECH, NURSE, WARD_MANAGER, NURSING_SUPERVISOR
 const requirePatientAccess = (req: AuthRequest, res: Response, next: any) => {
   const userRole = req.user?.role;
-  if (userRole === UserRole.ADMIN || userRole === UserRole.DOCTOR || userRole === UserRole.RECEPTIONIST || userRole === UserRole.PHARMACY || userRole === UserRole.LAB_TECH) {
+  const allowedRoles = [
+    UserRole.ADMIN,
+    UserRole.DOCTOR,
+    UserRole.RECEPTIONIST,
+    UserRole.PHARMACY,
+    UserRole.LAB_TECH,
+    UserRole.NURSE,
+    UserRole.WARD_MANAGER,
+    UserRole.NURSING_SUPERVISOR
+  ];
+  
+  if (allowedRoles.includes(userRole)) {
     next();
   } else {
     res.status(403).json({ success: false, message: 'Access denied. Insufficient permissions.' });

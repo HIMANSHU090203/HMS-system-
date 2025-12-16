@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
@@ -85,6 +85,7 @@ const routes = [
     { path: '/api/safety', module: './routes/safety', exportName: 'safetyRoutes' },
     { path: '/api/config', module: './routes/config', exportName: null },
     { path: '/api/catalog', module: './routes/catalog', exportName: null },
+    { path: '/api/currency', module: './routes/currency', exportName: null },
 ];
 
 try {
@@ -252,5 +253,17 @@ const startServer = async () => {
 
 // Start the server
 startServer();
+
+// Start currency exchange rate scheduler (runs daily at midnight)
+if (process.env.ENABLE_CURRENCY_SCHEDULER !== 'false') {
+  try {
+    const { startCurrencyScheduler } = require('./services/currencyScheduler');
+    startCurrencyScheduler();
+    appLogger.info('✅ Currency exchange rate scheduler started');
+  } catch (error: any) {
+    appLogger.warn('⚠️  Failed to start currency scheduler', error);
+    appLogger.warn('Currency rates will not be updated automatically');
+  }
+}
 
 export default app;

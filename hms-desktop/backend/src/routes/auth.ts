@@ -70,16 +70,27 @@ router.post('/login', async (req, res) => {
       signOptions
     );
 
-    // Log the login action
-    await prisma.auditLog.create({
-      data: {
-        userId: user.id,
-        action: 'LOGIN',
-        tableName: 'users',
-        recordId: user.id,
-        newValue: { loginTime: new Date().toISOString() },
-      },
-    });
+    // Log the login action (wrapped in try-catch to prevent login failure if audit log fails)
+    try {
+      const { getHospitalId } = await import('../utils/hospitalHelper');
+      const hospitalId = await getHospitalId();
+      
+      if (hospitalId) {
+        await prisma.auditLog.create({
+          data: {
+            userId: user.id,
+            hospitalId: hospitalId,
+            action: 'LOGIN',
+            tableName: 'users',
+            recordId: user.id,
+            newValue: { loginTime: new Date().toISOString() },
+          },
+        });
+      }
+    } catch (auditError: any) {
+      // Log the error but don't fail the login
+      console.warn('Failed to create audit log for login:', auditError.message);
+    }
 
     res.json({
       success: true,
@@ -156,19 +167,29 @@ router.post('/register', authenticateToken, async (req: AuthRequest, res) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user.id,
-        action: 'CREATE_USER',
-        tableName: 'users',
-        recordId: newUser.id,
-        newValue: {
-          username: newUser.username,
-          fullName: newUser.fullName,
-          role: newUser.role,
-        },
-      },
-    });
+    try {
+      const { getHospitalId } = await import('../utils/hospitalHelper');
+      const hospitalId = await getHospitalId();
+      
+      if (hospitalId) {
+        await prisma.auditLog.create({
+          data: {
+            userId: req.user.id,
+            hospitalId: hospitalId,
+            action: 'CREATE_USER',
+            tableName: 'users',
+            recordId: newUser.id,
+            newValue: {
+              username: newUser.username,
+              fullName: newUser.fullName,
+              role: newUser.role,
+            },
+          },
+        });
+      }
+    } catch (auditError: any) {
+      console.warn('Failed to create audit log for user creation:', auditError.message);
+    }
 
     res.status(201).json({
       success: true,
@@ -243,16 +264,26 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res) => {
 // @access  Private
 router.post('/logout', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    // Log the logout action
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user!.id,
-        action: 'LOGOUT',
-        tableName: 'users',
-        recordId: req.user!.id,
-        newValue: { logoutTime: new Date().toISOString() },
-      },
-    });
+    // Log the logout action (wrapped in try-catch to prevent logout failure if audit log fails)
+    try {
+      const { getHospitalId } = await import('../utils/hospitalHelper');
+      const hospitalId = await getHospitalId();
+      
+      if (hospitalId) {
+        await prisma.auditLog.create({
+          data: {
+            userId: req.user!.id,
+            hospitalId: hospitalId,
+            action: 'LOGOUT',
+            tableName: 'users',
+            recordId: req.user!.id,
+            newValue: { logoutTime: new Date().toISOString() },
+          },
+        });
+      }
+    } catch (auditError: any) {
+      console.warn('Failed to create audit log for logout:', auditError.message);
+    }
 
     res.json({
       success: true,
@@ -329,16 +360,26 @@ router.post('/forgot-password', async (req, res) => {
     });
 
     // Log the action
-    await prisma.auditLog.create({
-      data: {
-        userId: user.id,
-        action: 'PASSWORD_RESET',
-        tableName: 'users',
-        recordId: user.id,
-        oldValue: { passwordChanged: true },
-        newValue: { passwordReset: true },
-      },
-    });
+    try {
+      const { getHospitalId } = await import('../utils/hospitalHelper');
+      const hospitalId = await getHospitalId();
+      
+      if (hospitalId) {
+        await prisma.auditLog.create({
+          data: {
+            userId: user.id,
+            hospitalId: hospitalId,
+            action: 'PASSWORD_RESET',
+            tableName: 'users',
+            recordId: user.id,
+            oldValue: { passwordChanged: true },
+            newValue: { passwordReset: true },
+          },
+        });
+      }
+    } catch (auditError: any) {
+      console.warn('Failed to create audit log for password reset:', auditError.message);
+    }
 
     res.json({
       success: true,
@@ -387,15 +428,25 @@ router.post('/register-admin', async (req, res) => {
     });
 
     // Log this special event
-    await prisma.auditLog.create({
-      data: {
-        userId: admin.id,
-        action: 'CREATE_FIRST_ADMIN',
-        tableName: 'users',
-        recordId: admin.id,
-        newValue: { username: admin.username, role: admin.role },
-      },
-    });
+    try {
+      const { getHospitalId } = await import('../utils/hospitalHelper');
+      const hospitalId = await getHospitalId();
+      
+      if (hospitalId) {
+        await prisma.auditLog.create({
+          data: {
+            userId: admin.id,
+            hospitalId: hospitalId,
+            action: 'CREATE_FIRST_ADMIN',
+            tableName: 'users',
+            recordId: admin.id,
+            newValue: { username: admin.username, role: admin.role },
+          },
+        });
+      }
+    } catch (auditError: any) {
+      console.warn('Failed to create audit log for first admin creation:', auditError.message);
+    }
 
     res.status(201).json({
       success: true,
