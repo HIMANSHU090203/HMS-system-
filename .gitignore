@@ -2,6 +2,8 @@
 development plan.md
 History of chatgpt chat.md
 HMS planning of the phase.md
+# Documentation (excluded from repository)
+docs/
 
 # Environment Variables
 .env
