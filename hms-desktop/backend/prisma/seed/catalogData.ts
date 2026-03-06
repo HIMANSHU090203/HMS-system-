@@ -2,33 +2,42 @@
 
 export const allergyCatalogData = [
   // Food Allergies
-  { code: 'ALG001', name: 'Peanuts', category: 'Food', severity: 'Severe' },
-  { code: 'ALG002', name: 'Milk', category: 'Food', severity: 'Moderate' },
-  { code: 'ALG003', name: 'Eggs', category: 'Food', severity: 'Moderate' },
-  { code: 'ALG004', name: 'Shellfish', category: 'Food', severity: 'Severe' },
-  { code: 'ALG005', name: 'Soy', category: 'Food', severity: 'Mild' },
-  { code: 'ALG006', name: 'Wheat', category: 'Food', severity: 'Moderate' },
-  { code: 'ALG007', name: 'Fish', category: 'Food', severity: 'Moderate' },
-  { code: 'ALG008', name: 'Sesame', category: 'Food', severity: 'Severe' },
+  { code: 'ALG001', name: 'Peanuts', category: 'Food' },
+  { code: 'ALG002', name: 'Milk', category: 'Food' },
+  { code: 'ALG003', name: 'Eggs', category: 'Food' },
+  { code: 'ALG004', name: 'Shellfish', category: 'Food' },
+  { code: 'ALG005', name: 'Soy', category: 'Food' },
+  { code: 'ALG006', name: 'Wheat', category: 'Food' },
+  { code: 'ALG007', name: 'Fish', category: 'Food' },
+  { code: 'ALG008', name: 'Sesame', category: 'Food' },
+  { code: 'ALG009', name: 'Tree Nuts', category: 'Food' },
+  { code: 'ALG010', name: 'Gluten', category: 'Food' },
+  { code: 'ALG011', name: 'Strawberry', category: 'Food' },
   
   // Drug Allergies
-  { code: 'ALG101', name: 'Penicillin', category: 'Drug', severity: 'Severe' },
-  { code: 'ALG102', name: 'Aspirin', category: 'Drug', severity: 'Moderate' },
-  { code: 'ALG103', name: 'Sulfonamides', category: 'Drug', severity: 'Moderate' },
-  { code: 'ALG104', name: 'Cephalosporins', category: 'Drug', severity: 'Mild' },
-  { code: 'ALG105', name: 'Non-Steroidal Anti-Inflammatory Drugs (NSAIDs)', category: 'Drug', severity: 'Severe' },
-  { code: 'ALG106', name: 'Iodine Contrast', category: 'Drug', severity: 'Severe' },
-  { code: 'ALG107', name: 'Local Anesthetics', category: 'Drug', severity: 'Mild' },
-  { code: 'ALG108', name: 'Opioids', category: 'Drug', severity: 'Moderate' },
+  { code: 'ALG101', name: 'Penicillin', category: 'Drug' },
+  { code: 'ALG102', name: 'Aspirin', category: 'Drug' },
+  { code: 'ALG103', name: 'Sulfonamides', category: 'Drug' },
+  { code: 'ALG104', name: 'Cephalosporins', category: 'Drug' },
+  { code: 'ALG105', name: 'Non-Steroidal Anti-Inflammatory Drugs (NSAIDs)', category: 'Drug' },
+  { code: 'ALG106', name: 'Iodine Contrast', category: 'Drug' },
+  { code: 'ALG107', name: 'Local Anesthetics', category: 'Drug' },
+  { code: 'ALG108', name: 'Opioids', category: 'Drug' },
+  { code: 'ALG109', name: 'Amoxicillin', category: 'Drug' },
+  { code: 'ALG110', name: 'Morphine', category: 'Drug' },
   
   // Environmental Allergies
-  { code: 'ALG201', name: 'Dust Mites', category: 'Environmental', severity: 'Moderate' },
-  { code: 'ALG202', name: 'Pollen', category: 'Environmental', severity: 'Moderate' },
-  { code: 'ALG203', name: 'Mold', category: 'Environmental', severity: 'Mild' },
-  { code: 'ALG204', name: 'Pet Dander', category: 'Environmental', severity: 'Moderate' },
-  { code: 'ALG205', name: 'Latex', category: 'Environmental', severity: 'Severe' },
-  { code: 'ALG206', name: 'Insect Stings', category: 'Environmental', severity: 'Severe' },
-  { code: 'ALG207', name: 'Cockroach', category: 'Environmental', severity: 'Moderate' },
+  { code: 'ALG201', name: 'Dust Mites', category: 'Environmental' },
+  { code: 'ALG202', name: 'Pollen', category: 'Environmental' },
+  { code: 'ALG203', name: 'Mold', category: 'Environmental' },
+  { code: 'ALG204', name: 'Pet Dander', category: 'Environmental' },
+  { code: 'ALG205', name: 'Insect Stings', category: 'Environmental' },
+  { code: 'ALG206', name: 'Cockroach', category: 'Environmental' },
+  { code: 'ALG207', name: 'Dust', category: 'Environmental' },
+  { code: 'ALG208', name: 'Grass Pollen', category: 'Environmental' },
+
+  // Chemical Allergies
+  { code: 'ALG301', name: 'Latex', category: 'Chemical' },
 ];
 
 export const chronicConditionData = [

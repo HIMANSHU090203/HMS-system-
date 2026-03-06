@@ -36,10 +36,13 @@ const PatientManagement = () => {
     dateOfBirth: '',
     gender: 'MALE',
     phone: '',
+    nationality: 'IN', // 'IN' = Indian (Aadhar), 'FOREIGN' = Passport
+    aadharCardNumber: '',
+    passportNumber: '',
     address: '',
     bloodGroup: '',
-    allergies: '', // Keep for backward compatibility
-    chronicConditions: '', // Keep for backward compatibility
+    allergies: '',
+    chronicConditions: '',
     emergencyContactName: '',
     emergencyContactPhone: ''
   });
@@ -144,10 +147,9 @@ const PatientManagement = () => {
       setError('');
       setSuccess('');
       
-      // Send patient data with dateOfBirth
-      const patientData = {
-        ...formData
-      };
+      // Send patient data (omit nationality - UI only; backend stores aadharCardNumber and passportNumber)
+      const { nationality, ...rest } = formData;
+      const patientData = { ...rest };
 
       let createdOrUpdatedPatient;
       if (selectedPatient) {
@@ -194,7 +196,7 @@ const PatientManagement = () => {
             const allergy = allergyCatalog.find(a => a.id === allergyId);
             await catalogService.addPatientAllergy(selectedPatient.id, {
               allergyId: allergyId,
-              severity: allergy?.severity || 'Unknown',
+              severity: 'Unknown',
               notes: ''
             });
           }
@@ -227,7 +229,7 @@ const PatientManagement = () => {
             const allergy = allergyCatalog.find(a => a.id === allergyId);
             await catalogService.addPatientAllergy(createdOrUpdatedPatient.id, {
               allergyId: allergyId,
-              severity: allergy?.severity || 'Unknown',
+              severity: 'Unknown',
               notes: ''
             });
           } catch (allergyError) {
@@ -246,6 +248,9 @@ const PatientManagement = () => {
         dateOfBirth: '',
         gender: 'MALE',
         phone: '',
+        nationality: 'IN',
+        aadharCardNumber: '',
+        passportNumber: '',
         address: '',
         bloodGroup: '',
         allergies: '',
@@ -321,6 +326,9 @@ const PatientManagement = () => {
         dateOfBirth: patientData.dateOfBirth ? new Date(patientData.dateOfBirth).toISOString().split('T')[0] : '',
         gender: patientData.gender || 'MALE',
         phone: patientData.phone || '',
+        nationality: patientData.passportNumber ? 'FOREIGN' : 'IN',
+        aadharCardNumber: patientData.aadharCardNumber || '',
+        passportNumber: patientData.passportNumber || '',
         address: patientData.address || '',
         bloodGroup: patientData.bloodGroup || '',
         allergies: patientData.allergies || '',
@@ -417,6 +425,9 @@ const PatientManagement = () => {
       dateOfBirth: '',
       gender: 'MALE',
       phone: '',
+      nationality: 'IN',
+      aadharCardNumber: '',
+      passportNumber: '',
       address: '',
       bloodGroup: '',
       allergies: '',
@@ -621,6 +632,78 @@ const PatientManagement = () => {
           ),
           React.createElement(
             'div',
+            null,
+            React.createElement(
+              'label',
+              { className: 'block text-sm font-medium text-gray-700' },
+              'Nationality'
+            ),
+            React.createElement(
+              'select',
+              {
+                name: 'nationality',
+                value: formData.nationality,
+                onChange: (e) => {
+                  handleInputChange(e);
+                  if (e.target.value === 'IN') setFormData(prev => ({ ...prev, passportNumber: '' }));
+                  else setFormData(prev => ({ ...prev, aadharCardNumber: '' }));
+                },
+                className: 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
+              },
+              React.createElement('option', { value: 'IN' }, 'Indian (Aadhar)'),
+              React.createElement('option', { value: 'FOREIGN' }, 'Foreign (Passport)')
+            )
+          ),
+          formData.nationality === 'IN' ? React.createElement(
+            'div',
+            null,
+            React.createElement(
+              'label',
+              { className: 'block text-sm font-medium text-gray-700' },
+              'Aadhar Card Number'
+            ),
+            React.createElement('input', {
+              type: 'text',
+              name: 'aadharCardNumber',
+              value: formData.aadharCardNumber,
+              onChange: handleInputChange,
+              placeholder: 'Enter 16-digit Aadhar number',
+              maxLength: 16,
+              pattern: '[0-9]{16}',
+              title: 'Aadhar card number must be exactly 16 digits',
+              className: 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
+            }),
+            React.createElement(
+              'p',
+              { className: 'mt-1 text-xs text-gray-500' },
+              'Unique 16-digit identity number (optional but recommended for Indian patients)'
+            )
+          ) : React.createElement(
+            'div',
+            null,
+            React.createElement(
+              'label',
+              { className: 'block text-sm font-medium text-gray-700' },
+              'Passport Number'
+            ),
+            React.createElement('input', {
+              type: 'text',
+              name: 'passportNumber',
+              value: formData.passportNumber,
+              onChange: handleInputChange,
+              placeholder: 'Enter passport number (e.g. A1234567)',
+              maxLength: 20,
+              title: 'Passport number: 6–20 letters, numbers, hyphens',
+              className: 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
+            }),
+            React.createElement(
+              'p',
+              { className: 'mt-1 text-xs text-gray-500' },
+              'Passport number for foreign patients (optional)'
+            )
+          ),
+          React.createElement(
+            'div',
             { className: 'md:col-span-2' },
             React.createElement(
               'label',
@@ -730,7 +813,7 @@ const PatientManagement = () => {
                   React.createElement(
                     'span',
                     { style: { color: '#6B7280', fontSize: '12px', marginLeft: '8px' } },
-                    `(${allergy.category} - ${allergy.severity})`
+                    `(${allergy.category})`
                   )
                 )
               ))
@@ -950,6 +1033,7 @@ const PatientManagement = () => {
               React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Age'),
               React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Gender'),
               React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Phone'),
+              React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'ID (Aadhar/Passport)'),
               React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Blood Group'),
               React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Actions')
             )
@@ -962,7 +1046,7 @@ const PatientManagement = () => {
               null,
               React.createElement(
                 'td',
-                { colSpan: 6, className: 'px-6 py-4 text-center text-gray-500' },
+                { colSpan: 7, className: 'px-6 py-4 text-center text-gray-500' },
                 loading ? 'Loading...' : 'No patients found. Click "Add Patient" to create your first patient.'
               )
             ) : patients.map((patient, index) => React.createElement(
@@ -987,6 +1071,11 @@ const PatientManagement = () => {
                 'td',
                 { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' },
                 patient.phone || 'N/A'
+              ),
+              React.createElement(
+                'td',
+                { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' },
+                patient.aadharCardNumber || patient.passportNumber || '-'
               ),
               React.createElement(
                 'td',
@@ -1094,6 +1183,9 @@ const PatientManagement = () => {
             React.createElement('div', null, React.createElement('strong', null, 'Age:'), ' ', selectedPatient.age),
             React.createElement('div', null, React.createElement('strong', null, 'Gender:'), ' ', selectedPatient.gender),
             React.createElement('div', null, React.createElement('strong', null, 'Phone:'), ' ', selectedPatient.phone),
+            selectedPatient.aadharCardNumber ? React.createElement('div', null, React.createElement('strong', null, 'Aadhar Card:'), ' ', selectedPatient.aadharCardNumber) : null,
+            selectedPatient.passportNumber ? React.createElement('div', null, React.createElement('strong', null, 'Passport Number:'), ' ', selectedPatient.passportNumber) : null,
+            !selectedPatient.aadharCardNumber && !selectedPatient.passportNumber ? React.createElement('div', null, React.createElement('strong', null, 'ID:'), ' Not provided') : null,
             React.createElement('div', { style: { gridColumn: '1 / -1' } }, React.createElement('strong', null, 'Address:'), ' ', selectedPatient.address),
             React.createElement('div', null, React.createElement('strong', null, 'Blood Group:'), ' ', selectedPatient.bloodGroup || 'N/A'),
             React.createElement('div', null, React.createElement('strong', null, 'Patient Type:'), ' ', selectedPatient.patientType || 'OUTPATIENT'),
@@ -1310,6 +1402,40 @@ const PatientManagement = () => {
               className: 'px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
             }),
             React.createElement(
+              'select',
+              {
+                name: 'nationality',
+                value: formData.nationality,
+                onChange: (e) => {
+                  handleInputChange(e);
+                  if (e.target.value === 'IN') setFormData(prev => ({ ...prev, passportNumber: '' }));
+                  else setFormData(prev => ({ ...prev, aadharCardNumber: '' }));
+                },
+                className: 'px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
+              },
+              React.createElement('option', { value: 'IN' }, 'Indian (Aadhar)'),
+              React.createElement('option', { value: 'FOREIGN' }, 'Foreign (Passport)')
+            ),
+            formData.nationality === 'IN' ? React.createElement('input', {
+              type: 'text',
+              name: 'aadharCardNumber',
+              value: formData.aadharCardNumber,
+              onChange: handleInputChange,
+              placeholder: 'Aadhar Card Number (16 digits)',
+              maxLength: 16,
+              pattern: '[0-9]{16}',
+              title: 'Aadhar card number must be exactly 16 digits',
+              className: 'px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
+            }) : React.createElement('input', {
+              type: 'text',
+              name: 'passportNumber',
+              value: formData.passportNumber,
+              onChange: handleInputChange,
+              placeholder: 'Passport Number',
+              maxLength: 20,
+              className: 'px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
+            }),
+            React.createElement(
               'textarea',
               {
                 name: 'address',
@@ -1500,7 +1626,7 @@ const PatientManagement = () => {
                   React.createElement(
                     'span',
                     { style: { color: '#6B7280', fontSize: '12px', marginLeft: '8px' } },
-                    `(${allergy.category} - ${allergy.severity})`
+                    `(${allergy.category})`
                   )
                 )
               ))

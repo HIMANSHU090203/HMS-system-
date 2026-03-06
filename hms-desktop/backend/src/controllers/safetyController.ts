@@ -144,7 +144,6 @@ export const checkPatientAllergies = async (req: AuthRequest, res: Response) => 
                 id: true,
                 name: true,
                 category: true,
-                severity: true,
               },
             },
           },
@@ -157,7 +156,7 @@ export const checkPatientAllergies = async (req: AuthRequest, res: Response) => 
             allergies: patientAllergies.map(pa => ({
               name: pa.allergy.name,
               category: pa.allergy.category,
-              severity: pa.allergy.severity,
+              severity: pa.severity,
               notes: pa.notes,
             })),
           });

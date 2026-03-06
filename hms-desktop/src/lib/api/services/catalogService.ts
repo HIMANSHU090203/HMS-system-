@@ -6,7 +6,6 @@ export interface Allergy {
   code: string;
   name: string;
   category: string;
-  severity: string;
   isActive: boolean;
 }
 

@@ -117,7 +117,7 @@ export const createPrescription = async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            age: true,
+            dateOfBirth: true,
             gender: true,
           },
         },

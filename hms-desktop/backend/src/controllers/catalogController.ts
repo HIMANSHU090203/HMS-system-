@@ -22,10 +22,27 @@ export const getAllAllergies = async (req: AuthRequest, res: Response) => {
 
 export const addAllergy = async (req: AuthRequest, res: Response) => {
   try {
-    const { code, name, category, severity } = req.body;
+    const { code, name, category } = req.body;
+
+    // Standardize and validate category to prevent drift
+    const allowedCategories = ['Food', 'Drug', 'Environmental', 'Chemical', 'Biological'] as const;
+    const normalizedCategory =
+      typeof category === 'string'
+        ? category.trim().toLowerCase()
+        : '';
+
+    const canonicalCategory =
+      allowedCategories.find((c) => c.toLowerCase() === normalizedCategory) || null;
+
+    if (!canonicalCategory) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid allergy category. Allowed: ${allowedCategories.join(', ')}`,
+      });
+    }
 
     const allergy = await prisma.allergyCatalog.create({
-      data: { code, name, category, severity, isActive: true },
+      data: { code, name, category: canonicalCategory, isActive: true },
     });
 
     res.json({ success: true, data: { allergy } });

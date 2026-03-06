@@ -10,7 +10,7 @@ import InvoicePDFGenerator from '../../lib/utils/invoicePDFGenerator';
 import { useHospitalConfig } from '../../lib/contexts/HospitalConfigContext';
 
 const BillingManagement = () => {
-  const { formatCurrency, displayCurrency, config } = useHospitalConfig();
+  const { formatCurrency, config } = useHospitalConfig();
   const [patients, setPatients] = useState([]);
   const [selectedPatientId, setSelectedPatientId] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -373,6 +373,9 @@ const BillingManagement = () => {
       const hospitalConfig = configResponse.config || {};
 
       // Prepare invoice data with section-wise items
+      // Application uses INR only
+      const invoiceCurrency = 'INR';
+      
       const invoiceData = {
         hospitalConfig: {
           hospitalName: hospitalConfig.hospitalName || 'Hospital Management System',
@@ -385,7 +388,8 @@ const BillingManagement = () => {
           phone: hospitalConfig.phone,
           email: hospitalConfig.email,
           emergencyContact: hospitalConfig.emergencyContact || '1066',
-          currency: displayCurrency || config?.displayCurrency || config?.currency || 'USD',
+          currency: 'INR', // Application uses INR only
+          displayCurrency: 'INR', // Application uses INR only
           logoUrl: hospitalConfig.logoUrl || '', // Include logo URL
           modulesEnabled: hospitalConfig.modulesEnabled || {}
         },

@@ -26,7 +26,7 @@ export const getHospitalConfig = async (req: AuthRequest, res: Response) => {
   try {
     const config = await prisma.hospitalConfig.findFirst();
     if (!config) {
-      return res.json({ success: true, data: { config: { hospitalName: 'HMS Hospital', currency: 'USD', taxRate: 0, appointmentSlotDuration: 30 } } });
+      return res.json({ success: true, data: { config: { hospitalName: 'HMS Hospital', currency: 'INR', displayCurrency: 'INR', taxRate: 0, appointmentSlotDuration: 30 } } });
     }
     
     // Convert binary logoData to data URL if it exists
@@ -38,13 +38,13 @@ export const getHospitalConfig = async (req: AuthRequest, res: Response) => {
     }
     
     // Return config with logoUrl (data URL format) for frontend
-    // Don't send binary data directly - convert to data URL
-    // Ensure displayCurrency is explicitly included (Prisma might not return it if null)
+    // Application uses INR only - always return INR
     const configWithLogo = {
       ...config,
       logoData: undefined, // Don't send binary data in response
       logoUrl: logoUrl,
-      displayCurrency: config.displayCurrency || null // Explicitly include displayCurrency
+      currency: 'INR', // Always return INR
+      displayCurrency: 'INR' // Always return INR
     };
     
     configLogger.debug('Returning hospital config', {
@@ -80,10 +80,8 @@ export const updateHospitalConfig = async (req: Request, res: Response) => {
       taxId: req.body.taxId,
       timezone: req.body.timezone || 'UTC',
       defaultLanguage: req.body.defaultLanguage || 'en',
-      currency: req.body.currency || 'USD',
-      displayCurrency: req.body.displayCurrency !== undefined && req.body.displayCurrency !== null 
-        ? req.body.displayCurrency 
-        : (req.body.currency || 'USD'),
+      currency: 'INR', // Application uses INR only
+      displayCurrency: 'INR', // Application uses INR only
       taxRate: req.body.taxRate,
       appointmentSlotDuration: req.body.appointmentSlotDuration || 30,
       defaultDoctorConsultationDuration: req.body.defaultDoctorConsultationDuration || 30,

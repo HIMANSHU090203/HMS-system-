@@ -6,6 +6,8 @@ import { PrismaClient } from '@prisma/client';
 import logger, { loggerWithContext } from './utils/logger';
 import { requestLogger } from './middleware/requestLogger';
 import { errorHandler } from './middleware/errorHandler';
+import { generalLimiter, strictLimiter } from './middleware/rateLimiter';
+import { sanitizeInput } from './middleware/inputSanitizer';
 
 // Load environment variables
 dotenv.config();
@@ -26,6 +28,15 @@ const appLogger = loggerWithContext('Server');
 app.use(helmet({
   // Allow Electron apps to make requests
   contentSecurityPolicy: false,
+  // Additional security headers
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true,
+  },
+  noSniff: true,
+  xssFilter: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
 app.use(cors({
   origin: process.env.CORS_ORIGIN || '*', // Allow all origins for Electron app
@@ -33,6 +44,12 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }));
+
+// Apply general rate limiting to all routes
+app.use(generalLimiter);
+
+// Apply input sanitization to all routes
+app.use(sanitizeInput);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));

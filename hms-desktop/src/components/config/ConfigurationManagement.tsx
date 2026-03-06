@@ -487,6 +487,8 @@ const ConfigurationManagement: React.FC<ConfigurationManagementProps> = ({ user 
       // Ensure logoUrl is included in the payload - use the most recent value
       const payload = {
         ...baseProfileData,
+        currency: 'INR', // Application uses INR only
+        displayCurrency: 'INR', // Application uses INR only
         logoUrl: finalLogoUrl || baseProfileData.logoUrl || config?.logoUrl || '', // Ensure logoUrl is always included
         modulesEnabled: {
           ...(config?.modulesEnabled || {}),
@@ -1026,33 +1028,14 @@ const ConfigurationManagement: React.FC<ConfigurationManagementProps> = ({ user 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Base Currency (for storing prices)</label>
-                  <select
-                    name="currency"
-                    value={profileData.currency}
-                    onChange={handleProfileChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {CURRENCIES.map(curr => (
-                      <option key={curr.code} value={curr.code}>{curr.name} ({curr.symbol})</option>
-                    ))}
-                  </select>
-                  <p className="mt-1 text-xs text-gray-500">Prices are stored in this currency in the database</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Display Currency (for showing prices)</label>
-                  <select
-                    name="displayCurrency"
-                    value={profileData.displayCurrency}
-                    onChange={handleProfileChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {CURRENCIES.map(curr => (
-                      <option key={curr.code} value={curr.code}>{curr.name} ({curr.symbol})</option>
-                    ))}
-                  </select>
-                  <p className="mt-1 text-xs text-gray-500">Prices will be converted and displayed in this currency. Exchange rates update daily at midnight.</p>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Currency (Fixed to INR)</label>
+                  <input
+                    type="text"
+                    value="INR - Indian Rupee (₹)"
+                    disabled
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Application uses INR (Indian Rupee) only. Currency conversion is disabled.</p>
                 </div>
 
                 <div>

@@ -91,69 +91,41 @@ export const TIMEZONES = [
   { value: 'UTC', label: 'UTC (Coordinated Universal Time)' },
 ];
 
-// Get currency symbol by code
-export function getCurrencySymbol(currencyCode) {
-  const currency = CURRENCIES.find(c => c.code === currencyCode);
-  return currency ? currency.symbol : currencyCode;
+// Get currency symbol by code - Application uses INR only
+export function getCurrencySymbol(currencyCode = 'INR') {
+  // Always return INR symbol regardless of input
+  return '₹';
 }
 
-// Format currency amount (with optional conversion)
+// Format currency amount - Application uses INR only (no conversion)
 export async function formatCurrency(
   amount: number,
-  currencyCode: string = 'USD',
-  locale: string = 'en-US',
+  currencyCode: string = 'INR',
+  locale: string = 'en-IN',
   baseCurrency?: string,
   convertToDisplay?: boolean
 ): Promise<string> {
-  if (amount === null || amount === undefined || isNaN(amount)) {
-    return '0.00';
-  }
-
-  let displayAmount = amount;
-
-  // If conversion is needed and base currency is different from display currency
-  if (convertToDisplay && baseCurrency && baseCurrency !== currencyCode) {
-    try {
-      // Dynamic import to avoid circular dependencies
-      const currencyService = await import('../api/services/currencyService');
-      displayAmount = await currencyService.default.convertCurrency(amount, baseCurrency, currencyCode);
-    } catch (error) {
-      console.warn('Currency conversion failed, using original amount:', error);
-      // Continue with original amount if conversion fails
-    }
-  }
-  
-  try {
-    return new Intl.NumberFormat(locale, {
-      style: 'currency',
-      currency: currencyCode,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(displayAmount);
-  } catch (error) {
-    // Fallback if currency code is invalid
-    const symbol = getCurrencySymbol(currencyCode);
-    return `${symbol}${parseFloat(displayAmount.toString()).toFixed(2)}`;
-  }
+  // Always use INR, ignore parameters
+  return formatCurrencySync(amount, 'INR');
 }
 
-// Synchronous version for backward compatibility (no conversion)
-export function formatCurrencySync(amount: number, currencyCode: string = 'USD', locale: string = 'en-US'): string {
+// Synchronous version - Application uses INR only (no conversion)
+export function formatCurrencySync(amount: number, currencyCode: string = 'INR', locale: string = 'en-IN'): string {
   if (amount === null || amount === undefined || isNaN(amount)) {
-    return '0.00';
+    return '₹0.00';
   }
   
+  // Always use INR - ignore currencyCode parameter
   try {
-    return new Intl.NumberFormat(locale, {
+    return new Intl.NumberFormat('en-IN', {
       style: 'currency',
-      currency: currencyCode,
+      currency: 'INR',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount);
   } catch (error) {
-    // Fallback if currency code is invalid
-    const symbol = getCurrencySymbol(currencyCode);
-    return `${symbol}${parseFloat(amount.toString()).toFixed(2)}`;
+    // Fallback to symbol if Intl fails
+    return `₹${parseFloat(amount.toString()).toFixed(2)}`;
   }
 }
 

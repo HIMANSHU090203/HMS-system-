@@ -17,7 +17,7 @@ const HospitalSetupWizard = ({ onComplete }) => {
     hospitalLicenseNumber: '',
     timezone: 'UTC',
     defaultLanguage: 'en',
-    currency: 'USD',
+    currency: 'INR',
     taxRate: 0,
     medicineMarkupPercentage: 0,
     appointmentSlotDuration: 30,
@@ -41,6 +41,29 @@ const HospitalSetupWizard = ({ onComplete }) => {
   const [error, setError] = useState('');
   const [logoFile, setLogoFile] = useState(null);
 
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : (type === 'number' ? (value === '' ? '' : Number(value)) : value)
+    }));
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File size must be less than 5MB');
+      return;
+    }
+    setLogoFile(file);
+    setError('');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -54,20 +77,6 @@ const HospitalSetupWizard = ({ onComplete }) => {
       setError(err.response?.data?.message || 'Failed to setup hospital profile');
     } finally {
       setLoading(false);
-    }
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        setError('Please select a valid image file');
-        return;
-      }
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setError('File size must be less than 5MB');
-        return;
-      }
-      setLogoFile(file);
-      setError('');
     }
   };
 

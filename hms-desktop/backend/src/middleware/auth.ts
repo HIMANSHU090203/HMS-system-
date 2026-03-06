@@ -63,7 +63,15 @@ export const authenticateToken = async (
     // Verify JWT token with better error handling
     let decoded: any;
     try {
-      decoded = jwt.verify(token, jwtSecret);
+      decoded = jwt.verify(token, jwtSecret, {
+        issuer: 'hms-backend',
+        audience: 'hms-desktop',
+      });
+      
+      // Verify token type
+      if (decoded.type && decoded.type !== 'access') {
+        return next(createError('Invalid token type', 401));
+      }
     } catch (jwtError: any) {
       // Handle specific JWT errors more gracefully
       if (jwtError instanceof jwt.TokenExpiredError) {

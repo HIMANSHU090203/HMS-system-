@@ -40,6 +40,15 @@ const patientCreateSchema = z.object({
   ]).optional(),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER'], { message: 'Invalid gender' }),
   phone: z.string().min(10, 'Phone number too short').max(15, 'Phone number too long'),
+  aadharCardNumber: z.string()
+    .regex(/^[0-9]{16}$/, 'Aadhar card number must be exactly 16 digits')
+    .optional()
+    .or(z.literal('')), // Allow empty string (Indian patients)
+  passportNumber: z.union([
+    z.string().min(6, 'Passport number must be at least 6 characters').max(20, 'Passport number too long')
+      .regex(/^[A-Za-z0-9\-]+$/, 'Passport number can only contain letters, numbers and hyphens'),
+    z.literal('')
+  ]).optional(), // Allow empty (foreign patients use this when provided)
   address: z.string().min(1, 'Address is required').max(500, 'Address too long'),
   bloodGroup: z.string().optional(),
   allergies: z.string().optional(),
@@ -49,7 +58,7 @@ const patientCreateSchema = z.object({
 }).refine((data) => {
   // At least one of dateOfBirth or age must be provided
   const hasDateOfBirth = data.dateOfBirth !== undefined && data.dateOfBirth !== null;
-  const hasAge = data.age !== undefined && data.age !== null && data.age !== '';
+  const hasAge = data.age !== undefined && data.age !== null;
   return hasDateOfBirth || hasAge;
 }, {
   message: 'Either dateOfBirth or age must be provided',
@@ -101,24 +110,56 @@ export const createPatient = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Prepare patient data (remove age field, use dateOfBirth)
+    // Prepare patient data (remove age field, use dateOfBirth; normalize empty ID strings to undefined)
     const { age, ...patientData } = validatedData;
     const finalPatientData = {
       ...patientData,
       dateOfBirth,
+      aadharCardNumber: patientData.aadharCardNumber?.trim() || undefined,
+      passportNumber: patientData.passportNumber?.trim() || undefined,
     };
 
     // Check for duplicate phone number
-    const existingPatient = await prisma.patient.findUnique({
+    const existingPatientByPhone = await prisma.patient.findUnique({
       where: { phone: finalPatientData.phone },
     });
 
-    if (existingPatient) {
+    if (existingPatientByPhone) {
       return res.status(400).json({
         success: false,
         message: 'Patient with this phone number already exists',
-        data: { existingPatientId: existingPatient.id }
+        data: { existingPatientId: existingPatientByPhone.id }
       });
+    }
+
+    // Check for duplicate Aadhar card number if provided
+    if (finalPatientData.aadharCardNumber) {
+      const existingPatientByAadhar = await prisma.patient.findUnique({
+        where: { aadharCardNumber: finalPatientData.aadharCardNumber },
+      });
+
+      if (existingPatientByAadhar) {
+        return res.status(400).json({
+          success: false,
+          message: 'Patient with this Aadhar card number already exists',
+          data: { existingPatientId: existingPatientByAadhar.id }
+        });
+      }
+    }
+
+    // Check for duplicate passport number if provided
+    if (finalPatientData.passportNumber) {
+      const existingPatientByPassport = await prisma.patient.findUnique({
+        where: { passportNumber: finalPatientData.passportNumber },
+      });
+
+      if (existingPatientByPassport) {
+        return res.status(400).json({
+          success: false,
+          message: 'Patient with this passport number already exists',
+          data: { existingPatientId: existingPatientByPassport.id }
+        });
+      }
     }
 
     // Create patient
@@ -171,6 +212,8 @@ export const getPatients = async (req: AuthRequest, res: Response) => {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search } },
+        { aadharCardNumber: { contains: search } },
+        { passportNumber: { contains: search, mode: 'insensitive' } },
         { address: { contains: search, mode: 'insensitive' } },
       ];
     }
@@ -196,6 +239,8 @@ export const getPatients = async (req: AuthRequest, res: Response) => {
           dateOfBirth: true,
           gender: true,
           phone: true,
+          aadharCardNumber: true,
+          passportNumber: true,
           address: true,
           bloodGroup: true,
           allergies: true,
@@ -351,6 +396,40 @@ export const updatePatient = async (req: AuthRequest, res: Response) => {
           success: false,
           message: 'Patient with this phone number already exists',
           data: { existingPatientId: duplicatePatient.id }
+        });
+      }
+    }
+
+    // Normalize empty ID strings to undefined for update
+    if (updateData.aadharCardNumber !== undefined) updateData.aadharCardNumber = updateData.aadharCardNumber?.trim() || undefined;
+    if (updateData.passportNumber !== undefined) updateData.passportNumber = updateData.passportNumber?.trim() || undefined;
+
+    // Check for duplicate Aadhar card number if Aadhar is being updated
+    if (updateData.aadharCardNumber && updateData.aadharCardNumber !== existingPatient.aadharCardNumber) {
+      const duplicatePatientByAadhar = await prisma.patient.findUnique({
+        where: { aadharCardNumber: updateData.aadharCardNumber },
+      });
+
+      if (duplicatePatientByAadhar) {
+        return res.status(400).json({
+          success: false,
+          message: 'Patient with this Aadhar card number already exists',
+          data: { existingPatientId: duplicatePatientByAadhar.id }
+        });
+      }
+    }
+
+    // Check for duplicate passport number if passport is being updated
+    if (updateData.passportNumber && updateData.passportNumber !== existingPatient.passportNumber) {
+      const duplicatePatientByPassport = await prisma.patient.findUnique({
+        where: { passportNumber: updateData.passportNumber },
+      });
+
+      if (duplicatePatientByPassport) {
+        return res.status(400).json({
+          success: false,
+          message: 'Patient with this passport number already exists',
+          data: { existingPatientId: duplicatePatientByPassport.id }
         });
       }
     }

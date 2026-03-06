@@ -298,6 +298,8 @@ export interface Patient {
   age: number;
   gender: Gender;
   phone: string;
+  aadharCardNumber?: string; // Indian patients: 16-digit Aadhar
+  passportNumber?: string;  // Foreign patients: passport number
   address: string;
   bloodGroup?: string;
   allergies?: string;
@@ -310,9 +312,12 @@ export interface Patient {
 
 export interface CreatePatientRequest {
   name: string;
-  age: number;
+  age?: number;
+  dateOfBirth?: string;
   gender: Gender;
   phone: string;
+  aadharCardNumber?: string; // Indian patients
+  passportNumber?: string;   // Foreign patients
   address: string;
   bloodGroup?: string;
   allergies?: string;

@@ -4,6 +4,8 @@ import jwt, { SignOptions } from 'jsonwebtoken';
 import { PrismaClient, UserRole } from '@prisma/client';
 import { z } from 'zod';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { authLimiter } from '../middleware/rateLimiter';
+import { sanitizeInput } from '../middleware/inputSanitizer';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -24,7 +26,7 @@ const registerSchema = z.object({
 // @route   POST /api/auth/login
 // @desc    Login user
 // @access  Public
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, sanitizeInput, async (req, res) => {
   try {
     const validatedData = loginSchema.parse(req.body);
     const { username, password } = validatedData;
@@ -56,19 +58,45 @@ router.post('/login', async (req, res) => {
       throw new Error('JWT secret not configured');
     }
 
+    const expiresInValue: string | number = process.env.JWT_EXPIRES_IN || '1h';
     const signOptions: SignOptions = {
-      expiresIn: '1h'
+      expiresIn: expiresInValue as any,
+      issuer: 'hms-backend',
+      audience: 'hms-desktop',
     };
     
     const accessToken = jwt.sign(
       { 
         userId: user.id, 
         username: user.username, 
-        role: user.role 
+        role: user.role,
+        type: 'access',
       },
       jwtSecret,
       signOptions
     );
+
+    // Generate refresh token if refresh secret is configured
+    let refreshToken: string | undefined;
+    const refreshSecret = process.env.JWT_REFRESH_SECRET;
+    if (refreshSecret) {
+      const refreshExpiresIn: string | number = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+      const refreshOptions: SignOptions = {
+        expiresIn: refreshExpiresIn as any,
+        issuer: 'hms-backend',
+        audience: 'hms-desktop',
+      };
+      
+      refreshToken = jwt.sign(
+        {
+          userId: user.id,
+          username: user.username,
+          type: 'refresh',
+        },
+        refreshSecret,
+        refreshOptions
+      );
+    }
 
     // Log the login action (wrapped in try-catch to prevent login failure if audit log fails)
     try {
@@ -104,6 +132,7 @@ router.post('/login', async (req, res) => {
           isActive: user.isActive,
         },
         accessToken,
+        ...(refreshToken && { refreshToken }),
       },
     });
   } catch (error) {
@@ -299,14 +328,115 @@ router.post('/logout', authenticateToken, async (req: AuthRequest, res) => {
 });
 
 // @route   POST /api/auth/refresh
-// @desc    Refresh access token (placeholder for future implementation)
+// @desc    Refresh access token using refresh token
 // @access  Public
-router.post('/refresh', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Token refresh endpoint - to be implemented',
-    data: null,
-  });
+router.post('/refresh', sanitizeInput, async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Refresh token is required',
+      });
+    }
+
+    const refreshSecret = process.env.JWT_REFRESH_SECRET;
+    if (!refreshSecret) {
+      return res.status(500).json({
+        success: false,
+        message: 'Refresh token functionality is not configured',
+      });
+    }
+
+    // Verify refresh token
+    let decoded: any;
+    try {
+      decoded = jwt.verify(refreshToken, refreshSecret);
+    } catch (jwtError: any) {
+      if (jwtError instanceof jwt.TokenExpiredError) {
+        return res.status(401).json({
+          success: false,
+          message: 'Refresh token expired. Please login again',
+        });
+      } else if (jwtError instanceof jwt.JsonWebTokenError) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid refresh token',
+        });
+      } else {
+        return res.status(401).json({
+          success: false,
+          message: 'Token verification failed',
+        });
+      }
+    }
+
+    // Verify token type
+    if (decoded.type !== 'refresh') {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token type',
+      });
+    }
+
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        fullName: true,
+        isActive: true,
+      },
+    });
+
+    if (!user || !user.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not found or inactive',
+      });
+    }
+
+    // Generate new access token
+    const jwtSecret = process.env['JWT_SECRET'];
+    if (!jwtSecret) {
+      throw new Error('JWT secret not configured');
+    }
+
+    const refreshExpiresInValue: string | number = process.env.JWT_EXPIRES_IN || '1h';
+    const signOptions: SignOptions = {
+      expiresIn: refreshExpiresInValue as any,
+      issuer: 'hms-backend',
+      audience: 'hms-desktop',
+    };
+
+    const newAccessToken = jwt.sign(
+      {
+        userId: user.id,
+        username: user.username,
+        role: user.role,
+        type: 'access',
+      },
+      jwtSecret,
+      signOptions
+    );
+
+    res.json({
+      success: true,
+      message: 'Token refreshed successfully',
+      data: {
+        accessToken: newAccessToken,
+      },
+    });
+  } catch (error) {
+    console.error('Refresh token error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    });
+  }
 });
 
 // Validation schema for forgot password
@@ -324,7 +454,7 @@ const registerFirstAdminSchema = z.object({
 // @route   POST /api/auth/forgot-password
 // @desc    Reset password for a user (forgot password)
 // @access  Public
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', authLimiter, sanitizeInput, async (req, res) => {
   try {
     const validatedData = forgotPasswordSchema.parse(req.body);
     const { username, newPassword } = validatedData;
@@ -397,7 +527,7 @@ router.post('/forgot-password', async (req, res) => {
 // @route   POST /api/auth/register-admin
 // @desc    Register first admin (only if no users exist)
 // @access  Public (but restricted to first-user scenario)
-router.post('/register-admin', async (req, res) => {
+router.post('/register-admin', authLimiter, sanitizeInput, async (req, res) => {
   try {
     // Check if any users exist
     const userCount = await prisma.user.count();

@@ -40,38 +40,20 @@ class CurrencyService {
 
   /**
    * Convert amount from one currency to another
+   * Application uses INR only - no conversion needed
    */
   async convertCurrency(amount: number, fromCurrency: string, toCurrency: string, date?: string): Promise<number> {
-    try {
-      if (fromCurrency === toCurrency) {
-        return amount;
-      }
-
-      const response = await apiClient.post<ApiResponse<CurrencyConversion>>('/currency/convert', {
-        amount,
-        fromCurrency,
-        toCurrency,
-        date,
-      });
-
-      return response.data.data?.convertedAmount || amount;
-    } catch (error: any) {
-      console.error('Error converting currency:', error);
-      return amount; // Fallback to original amount
-    }
+    // Application uses INR only - return amount as-is
+    return amount;
   }
 
   /**
    * Get hospital base and display currencies
+   * Application uses INR only
    */
   async getHospitalCurrencies(): Promise<HospitalCurrencies> {
-    try {
-      const response = await apiClient.get<ApiResponse<HospitalCurrencies>>('/currency/hospital-currencies');
-      return response.data.data || { baseCurrency: 'USD', displayCurrency: 'USD' };
-    } catch (error: any) {
-      console.error('Error getting hospital currencies:', error);
-      return { baseCurrency: 'USD', displayCurrency: 'USD' };
-    }
+    // Application uses INR only
+    return { baseCurrency: 'INR', displayCurrency: 'INR' };
   }
 
   /**

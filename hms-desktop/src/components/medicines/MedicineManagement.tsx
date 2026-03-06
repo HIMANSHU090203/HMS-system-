@@ -8,71 +8,7 @@ import { useHospitalConfig } from '../../lib/contexts/HospitalConfigContext';
 import { formatCurrencySync } from '../../lib/utils/currencyAndTimezone';
 
 const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
-  const configContext = useHospitalConfig();
-  const { formatCurrency, formatCurrencyWithConversion, baseCurrency, displayCurrency, convertCurrency, config, refreshConfig } = configContext;
-  
-  // CRITICAL: Use a state variable to track the displayCurrency so it updates when config changes
-  const [currentDisplayCurrency, setCurrentDisplayCurrency] = React.useState<string>(() => {
-    const configDisplayCurrency = config?.displayCurrency 
-      ? (typeof config.displayCurrency === 'string' ? config.displayCurrency.trim().toUpperCase() : null)
-      : null;
-    return configDisplayCurrency || displayCurrency || 'USD';
-  });
-  
-  // Use a ref to track if we've directly fetched a currency value to prevent overwriting
-  const directlyFetchedCurrencyRef = React.useRef<string | null>(null);
-  
-  // Update currentDisplayCurrency whenever config.displayCurrency changes
-  // BUT: Only update if we haven't directly fetched a different value
-  React.useEffect(() => {
-    // Prioritize config.displayCurrency (source of truth from database)
-    const configDisplayCurrency = config?.displayCurrency 
-      ? (typeof config.displayCurrency === 'string' ? config.displayCurrency.trim().toUpperCase() : null)
-      : null;
-    
-    // If we have a directly fetched currency, check if context has caught up
-    if (directlyFetchedCurrencyRef.current) {
-      // If config now matches our directly fetched value, context has caught up - clear the ref
-      if (configDisplayCurrency === directlyFetchedCurrencyRef.current) {
-        console.log('[MedicineManagement] ✅ Context has caught up with directly fetched currency:', directlyFetchedCurrencyRef.current);
-        directlyFetchedCurrencyRef.current = null;
-      } else {
-        // Context hasn't caught up yet - keep using the directly fetched value
-        // Only update if currentDisplayCurrency doesn't match the directly fetched value
-        if (currentDisplayCurrency !== directlyFetchedCurrencyRef.current) {
-          console.log('[MedicineManagement] 🔒 Keeping directly fetched currency:', directlyFetchedCurrencyRef.current, '(context still has:', configDisplayCurrency || displayCurrency, ')');
-          setCurrentDisplayCurrency(directlyFetchedCurrencyRef.current);
-        }
-        return; // Don't proceed with context-based update
-      }
-    }
-    
-    // Only use context displayCurrency as fallback if config doesn't have it
-    // This ensures we always use the database value when available
-    const newDisplayCurrency = configDisplayCurrency || displayCurrency || 'USD';
-    
-    if (newDisplayCurrency !== currentDisplayCurrency) {
-      console.log('[MedicineManagement] 🔄 Updating currentDisplayCurrency from', currentDisplayCurrency, 'to', newDisplayCurrency, {
-        source: configDisplayCurrency ? 'config.displayCurrency' : 'context.displayCurrency',
-        directlyFetched: directlyFetchedCurrencyRef.current
-      });
-      setCurrentDisplayCurrency(newDisplayCurrency);
-    }
-  }, [config?.displayCurrency, displayCurrency, currentDisplayCurrency]);
-  
-  // Use currentDisplayCurrency for formatting
-  const finalDisplayCurrency = currentDisplayCurrency;
-  
-  console.log('[MedicineManagement] 🔍 Currency resolution:', {
-    configDisplayCurrency: config?.displayCurrency,
-    contextDisplayCurrency: displayCurrency,
-    currentDisplayCurrency,
-    finalDisplayCurrency,
-    willUse: finalDisplayCurrency,
-    configExists: !!config
-  });
-  
-  const [convertedPrices, setConvertedPrices] = React.useState<Record<string, number>>({});
+  const { formatCurrency } = useHospitalConfig();
   
   // CRITICAL: Force reload config from database when component mounts
   React.useEffect(() => {
@@ -293,99 +229,7 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
     }
   }, [transactionsPage]);
 
-  // Use ref to store convertCurrency function to avoid dependency issues
-  const convertCurrencyRef = React.useRef(convertCurrency);
-  React.useEffect(() => {
-    convertCurrencyRef.current = convertCurrency;
-  }, [convertCurrency]);
-  
-  // Convert prices when medicines or currency changes
-  // Use useMemo to create stable references for medicines array
-  const medicinesKey = React.useMemo(() => 
-    medicines.map(m => `${m.id}:${m.price || m.sellingPrice || 0}`).join('|'), 
-    [medicines]
-  );
-  
-  useEffect(() => {
-    // Prevent infinite loops by checking if we actually need to convert
-    if (medicines.length === 0) {
-      setConvertedPrices({});
-      return;
-    }
-    
-    // CRITICAL: Use finalDisplayCurrency (from config) instead of displayCurrency (from context)
-    const currencyToUse = finalDisplayCurrency || displayCurrency;
-    
-    // Check if currencies are valid first
-    if (!baseCurrency || !currencyToUse) {
-      console.warn('[Currency Conversion] Missing currency info. Base:', baseCurrency, 'Display:', currencyToUse);
-      const originalPrices: Record<string, number> = {};
-      medicines.forEach(medicine => {
-        const price = parseFloat(medicine.price || medicine.sellingPrice || 0);
-        originalPrices[medicine.id] = price;
-      });
-      setConvertedPrices(originalPrices);
-      return;
-    }
-    
-    // Normalize currencies to uppercase for comparison
-    const normalizedBase = baseCurrency.toUpperCase();
-    const normalizedDisplay = currencyToUse.toUpperCase();
-    
-    // If currencies are the same, use original prices (no conversion needed)
-    if (normalizedBase === normalizedDisplay) {
-      console.log(`[Currency Conversion] Currencies are the same (${normalizedBase}), using original prices without conversion`);
-      const originalPrices: Record<string, number> = {};
-      medicines.forEach(medicine => {
-        const price = parseFloat(medicine.price || medicine.sellingPrice || 0);
-        originalPrices[medicine.id] = price;
-      });
-      setConvertedPrices(originalPrices);
-      return;
-    }
-    
-    // Currencies are different - perform conversion
-    const convertAllPrices = async () => {
-      console.log(`[Currency Conversion] Starting conversion. Base: ${normalizedBase}, Display: ${normalizedDisplay}, Medicines: ${medicines.length}`);
-      const newConvertedPrices: Record<string, number> = {};
-      
-      // Convert all prices in parallel for better performance
-      const conversionPromises = medicines.map(async (medicine) => {
-        const price = parseFloat(medicine.price || medicine.sellingPrice || 0);
-        if (price > 0) {
-          try {
-            // Use ref to get latest convertCurrency function
-            const converted = await convertCurrencyRef.current(price);
-            
-            if (converted !== null && !isNaN(converted) && converted >= 0) {
-              // Always use converted value if it's valid
-              newConvertedPrices[medicine.id] = converted;
-              if (Math.abs(converted - price) > 0.01) {
-                console.log(`[Currency Conversion] ✓ ${medicine.name}: ${price} ${normalizedBase} → ${converted.toFixed(2)} ${normalizedDisplay}`);
-              }
-            } else {
-              console.warn(`[Currency Conversion] ✗ Invalid conversion result for ${medicine.name}, using original price`);
-              newConvertedPrices[medicine.id] = price;
-            }
-          } catch (error) {
-            console.error(`[Currency Conversion] ✗ Failed to convert price for medicine ${medicine.id} (${medicine.name}):`, error);
-            // Use original price if conversion fails
-            newConvertedPrices[medicine.id] = price;
-          }
-        } else {
-          newConvertedPrices[medicine.id] = 0;
-        }
-      });
-      
-      await Promise.all(conversionPromises);
-      setConvertedPrices(newConvertedPrices);
-      console.log(`[Currency Conversion] ✓ Complete. Converted ${Object.keys(newConvertedPrices).length} prices from ${normalizedBase} to ${normalizedDisplay}.`);
-    };
-    
-    convertAllPrices();
-    // Only depend on stable values - medicinesKey changes only when medicines actually change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [medicinesKey, baseCurrency, displayCurrency]);
+  // Application uses INR only - no currency conversion needed
 
   const loadMedicines = async () => {
     // Check authentication before making API call
@@ -903,7 +747,7 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                     (() => {
                       const price = parseFloat(medicine.sellingPrice || medicine.price || 0);
                       // Use converted price if available, otherwise use original
-                      const displayPrice = convertedPrices[medicine.id] !== undefined ? convertedPrices[medicine.id] : price;
+                      const displayPrice = price; // Application uses INR only - no conversion needed
                       
                       // CRITICAL: Always format with the finalDisplayCurrency (from config) if available
                       // CRITICAL: Always use finalDisplayCurrency which reads directly from config.displayCurrency
@@ -916,14 +760,14 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                           medicineName: medicine.name,
                           originalPrice: price,
                           displayPrice,
-                          convertedPrice: convertedPrices[medicine.id],
+                          convertedPrice: price, // Application uses INR only
                           baseCurrency,
                           displayCurrency,
                           finalDisplayCurrency,
                           configDisplayCurrency: config?.displayCurrency,
                           currencyForFormatting,
                           willFormatWith: currencyForFormatting,
-                          hasConvertedPrice: convertedPrices[medicine.id] !== undefined,
+                          hasConvertedPrice: false, // Application uses INR only - no conversion
                           currenciesMatch: baseCurrency === currencyForFormatting
                         });
                       }
