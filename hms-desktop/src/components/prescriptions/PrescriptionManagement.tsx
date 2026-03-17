@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import prescriptionService from '../../lib/api/services/prescriptionService';
 import medicineService from '../../lib/api/services/medicineService';
 import patientService from '../../lib/api/services/patientService';
+import appointmentService from '../../lib/api/services/appointmentService';
 import userService from '../../lib/api/services/userService';
 import safetyService from '../../lib/api/services/safetyService';
 import auditService from '../../lib/api/services/auditService';
@@ -15,6 +16,8 @@ import AuditLogs from '../common/AuditLogs';
 import InfoButton from '../common/InfoButton';
 import { getInfoContent } from '../../lib/infoContent';
 import { useHospitalConfig } from '../../lib/contexts/HospitalConfigContext';
+import { autoSelectIfZero, autoSelectIfZeroMouseDown } from '../../lib/utils/numberInput';
+import { calculateAge } from '../../lib/utils/ageCalculator';
 
 const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
   const { formatCurrency: formatCurrencyUtil, config: hospitalConfig } = useHospitalConfig();
@@ -118,8 +121,30 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
 
   const loadPatients = async () => {
     try {
-      const response = await patientService.getPatients({ limit: 100 });
-      setPatients(response.patients || []);
+      // Doctors see only patients who have an appointment with them; admin/receptionist see full list
+      if (user?.role === 'DOCTOR') {
+        const { appointments } = await appointmentService.getAppointments({ limit: 500 });
+        const seen = new Set();
+        const patientList = [];
+        for (const apt of appointments || []) {
+          const p = apt.patient;
+          if (p && p.id && !seen.has(p.id)) {
+            seen.add(p.id);
+            patientList.push({
+              id: p.id,
+              name: p.name || 'Unknown',
+              gender: p.gender || 'N/A',
+              dateOfBirth: p.dateOfBirth,
+              age: p.dateOfBirth ? calculateAge(p.dateOfBirth) : undefined,
+              phone: p.phone
+            });
+          }
+        }
+        setPatients(patientList);
+      } else {
+        const response = await patientService.getPatients({ limit: 100 });
+        setPatients(response.patients || []);
+      }
     } catch (err) {
       console.error('Error loading patients:', err);
       if (err.response?.status === 403) {
@@ -167,7 +192,7 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
   const handleCreatePrescription = async (e) => {
     e.preventDefault();
     console.log('Creating prescription with data:', formData);
-    
+
     if (formData.items.length === 0) {
       setError('Please add at least one medicine to the prescription');
       return;
@@ -175,6 +200,12 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
 
     if (!formData.patientId) {
       setError('Please select a patient');
+      return;
+    }
+
+    const missingMedicine = formData.items.some((item) => !item.medicineId || String(item.medicineId).trim() === '');
+    if (missingMedicine) {
+      setError('Please select a medicine from the list for each prescription item. Type in the Medicine field and choose from the dropdown.');
       return;
     }
 
@@ -186,19 +217,17 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
       console.log('Sending prescription data to API:', formData);
       const response = await prescriptionService.createPrescription(formData);
       console.log('Prescription creation response:', response);
-      
-      if (response.prescription) {
+
+      if (response && response.prescription) {
         setSuccess('✅ Prescription created successfully!');
-        
-        // Immediately export the newly created prescription
+
         try {
           const prescriptionId = response.prescription.id;
           await handlePrintPrescription(prescriptionId);
         } catch (exportError) {
           console.warn('Could not export prescription immediately:', exportError);
-          // Don't fail the creation if export fails
         }
-        
+
         setFormData({
           patientId: '',
           appointmentId: '',
@@ -214,7 +243,12 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
       }
     } catch (err) {
       console.error('Error creating prescription:', err);
-      setError(err.response?.data?.message || err.message || 'Error creating prescription');
+      const message = err.response?.data?.message || err.message || 'Error creating prescription';
+      const errors = err.response?.data?.errors;
+      const detail = Array.isArray(errors) && errors.length > 0
+        ? errors.map((e) => e.message || e.path?.join('.')).join('; ')
+        : '';
+      setError(detail ? `${message}: ${detail}` : message);
     } finally {
       setLoading(false);
     }
@@ -299,6 +333,7 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
     setFormData({
       ...formData,
       items: [...formData.items, {
+        id: Date.now(),
         medicineId: '',
         quantity: 1,
         frequency: '',
@@ -384,7 +419,8 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
   };
 
   const handleSelectTemplate = (template) => {
-    const templateItems = template.templateData.map(item => ({
+    const templateItems = template.templateData.map((item, i) => ({
+      id: Date.now() + i,
       medicineId: item.medicineId,
       quantity: item.quantity,
       frequency: item.frequency,
@@ -948,7 +984,7 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
                 ...patients.map(patient => React.createElement(
                   'option',
                   { key: patient.id, value: patient.id },
-                  `${patient.name} (${patient.age} years, ${patient.gender})`
+                  `${patient.name} (${patient.age != null ? `${patient.age} years` : 'N/A'}, ${patient.gender || 'N/A'})`
                 ))
               )
             ),
@@ -1017,7 +1053,7 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
             { className: 'space-y-4' },
             ...formData.items.map((item, index) => React.createElement(
               'div',
-              { key: index, className: 'border border-gray-200 rounded-lg p-4' },
+              { key: item.id ?? index, className: 'border border-gray-200 rounded-lg p-4' },
               React.createElement(
                 'div',
                 { className: 'flex justify-between items-center mb-3' },
@@ -1055,6 +1091,7 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
                   React.createElement(
                     MedicineSearchAutocomplete,
                     {
+                      value: item.medicineId || '',
                       onSelect: (medicine) => updatePrescriptionItem(index, 'medicineId', medicine.id),
                       placeholder: 'Search medicine by name, manufacturer, or category...',
                       className: 'w-full'
@@ -1081,6 +1118,8 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
                       min: 1,
                       value: item.quantity,
                       onChange: (e) => updatePrescriptionItem(index, 'quantity', parseInt(e.target.value) || 1),
+                      onFocus: autoSelectIfZero,
+                      onMouseDown: autoSelectIfZeroMouseDown,
                       className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
                       required: true
                     }
@@ -1128,6 +1167,8 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
                       min: 1,
                       value: item.duration,
                       onChange: (e) => updatePrescriptionItem(index, 'duration', parseInt(e.target.value) || 7),
+                      onFocus: autoSelectIfZero,
+                      onMouseDown: autoSelectIfZeroMouseDown,
                       className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
                       required: true
                     }
@@ -1547,6 +1588,15 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
             'button',
             {
               onClick: () => {
+                if (!showCreateForm) {
+                  setFormData({
+                    patientId: '',
+                    appointmentId: '',
+                    consultationId: '',
+                    notes: '',
+                    items: []
+                  });
+                }
                 setShowCreateForm(!showCreateForm);
                 setActiveTab('list');
               },

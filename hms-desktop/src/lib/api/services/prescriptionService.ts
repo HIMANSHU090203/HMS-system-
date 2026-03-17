@@ -39,6 +39,12 @@ class PrescriptionService {
       '/prescriptions',
       prescriptionData
     );
+    // Treat 4xx as errors so callers get a thrown error (axios validateStatus allows 4xx through)
+    if (response.status >= 400 || response.data?.success === false) {
+      const err: any = new Error(response.data?.message || 'Prescription creation failed');
+      err.response = { data: response.data, status: response.status };
+      throw err;
+    }
     return response.data.data;
   }
 

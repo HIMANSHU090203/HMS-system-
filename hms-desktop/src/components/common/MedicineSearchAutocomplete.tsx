@@ -3,7 +3,7 @@ import medicineService from '../../lib/api/services/medicineService';
 import { useHospitalConfig } from '../../lib/contexts/HospitalConfigContext';
 import { formatCurrencySync } from '../../lib/utils/currencyAndTimezone';
 
-const MedicineSearchAutocomplete = ({ onSelect, placeholder = "Search medicines...", className = "" }) => {
+const MedicineSearchAutocomplete = ({ onSelect, placeholder = "Search medicines...", className = "", value: selectedMedicineId = "" }) => {
   const { displayCurrency } = useHospitalConfig();
   const [searchTerm, setSearchTerm] = useState('');
   const [medicines, setMedicines] = useState([]);
@@ -17,6 +17,16 @@ const MedicineSearchAutocomplete = ({ onSelect, placeholder = "Search medicines.
   useEffect(() => {
     loadMedicines();
   }, []);
+
+  // When parent provides a selected medicine id (e.g. after selection), show its name.
+  // Only sync when we have a selected id so we never overwrite user typing with empty/stale value.
+  useEffect(() => {
+    if (!selectedMedicineId || medicines.length === 0) return;
+    const selected = medicines.find((m) => m.id === selectedMedicineId);
+    if (selected) {
+      setSearchTerm(selected.name);
+    }
+  }, [selectedMedicineId, medicines]);
 
   useEffect(() => {
     if (searchTerm.length >= 2) {
@@ -40,7 +50,8 @@ const MedicineSearchAutocomplete = ({ onSelect, placeholder = "Search medicines.
     setLoading(true);
     try {
       const response = await medicineService.getMedicines({ limit: 1000 });
-      setMedicines(response.data.medicines || []);
+      const list = response?.data?.medicines ?? response?.medicines ?? [];
+      setMedicines(Array.isArray(list) ? list : []);
     } catch (error) {
       console.error('Error loading medicines:', error);
     } finally {
@@ -133,10 +144,10 @@ const MedicineSearchAutocomplete = ({ onSelect, placeholder = "Search medicines.
       }
     ),
 
-    // Loading indicator
+    // Loading indicator (pointer-events: none so it doesn't block typing or clicking the input)
     loading && React.createElement(
       'div',
-      { className: 'absolute right-3 top-3' },
+      { className: 'absolute right-3 top-3 pointer-events-none' },
       React.createElement(
         'div',
         { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600' }
@@ -154,7 +165,11 @@ const MedicineSearchAutocomplete = ({ onSelect, placeholder = "Search medicines.
         'div',
         {
           key: medicine.id,
-          onClick: () => handleMedicineSelect(medicine),
+          onMouseDown: (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleMedicineSelect(medicine);
+          },
           className: `px-4 py-3 cursor-pointer border-b border-gray-100 last:border-b-0 hover:bg-gray-50 ${
             index === selectedIndex ? 'bg-blue-50' : ''
           }`,

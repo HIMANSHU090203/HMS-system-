@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import wardService from '../../lib/api/services/wardService';
 import { useHospitalConfig } from '../../lib/contexts/HospitalConfigContext';
 import { formatCurrencySync, getCurrencySymbol } from '../../lib/utils/currencyAndTimezone';
+import { autoSelectIfZero, autoSelectIfZeroMouseDown } from '../../lib/utils/numberInput';
 
 const WardManagement = ({ onBack, isAuthenticated }) => {
   const { displayCurrency } = useHospitalConfig();
@@ -1179,6 +1180,8 @@ const WardManagement = ({ onBack, isAuthenticated }) => {
                 min: 1,
                 value: formData.capacity,
                 onChange: handleInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 style: {
                   width: '100%',
                   padding: '8px',
@@ -1226,6 +1229,8 @@ const WardManagement = ({ onBack, isAuthenticated }) => {
               step: '0.01',
               value: formData.dailyRate,
               onChange: handleInputChange,
+              onFocus: autoSelectIfZero,
+              onMouseDown: autoSelectIfZeroMouseDown,
               placeholder: 'e.g., 1500.00 (optional - uses ward type default if not set)',
               style: {
                 width: '100%',

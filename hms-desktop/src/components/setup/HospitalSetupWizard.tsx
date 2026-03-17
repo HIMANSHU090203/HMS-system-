@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import configService from '../../lib/api/services/configService';
 import { CURRENCIES, TIMEZONES } from '../../lib/utils/currencyAndTimezone';
+import { autoSelectIfZero, autoSelectIfZeroMouseDown } from '../../lib/utils/numberInput';
 
 const HospitalSetupWizard = ({ onComplete }) => {
   const [formData, setFormData] = useState({
@@ -526,6 +527,8 @@ const HospitalSetupWizard = ({ onComplete }) => {
                 name: 'taxRate',
                 value: formData.taxRate,
                 onChange: handleInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 min: 0,
                 max: 100,
                 step: 0.01,
@@ -549,6 +552,8 @@ const HospitalSetupWizard = ({ onComplete }) => {
                 name: 'medicineMarkupPercentage',
                 value: formData.medicineMarkupPercentage,
                 onChange: handleInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 min: 0,
                 max: 1000,
                 step: 0.1,
@@ -579,6 +584,8 @@ const HospitalSetupWizard = ({ onComplete }) => {
                 name: 'appointmentSlotDuration',
                 value: formData.appointmentSlotDuration,
                 onChange: handleInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 min: 10,
                 max: 120,
                 step: 5,
@@ -602,6 +609,8 @@ const HospitalSetupWizard = ({ onComplete }) => {
                 name: 'defaultDoctorConsultationDuration',
                 value: formData.defaultDoctorConsultationDuration,
                 onChange: handleInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 min: 10,
                 max: 120,
                 step: 5,

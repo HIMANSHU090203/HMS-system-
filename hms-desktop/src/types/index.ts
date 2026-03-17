@@ -51,6 +51,7 @@ export type PatientType = 'OUTPATIENT' | 'INPATIENT' | 'EMERGENCY';
 export interface Patient {
   id: string;
   name: string;
+  patientNumber?: string | null; // Display ID: e.g. alex_carry_5849 (normalized name + last 4 of Aadhar/Passport)
   age: number;
   gender: Gender;
   phone: string;
@@ -506,8 +507,117 @@ export type ModuleName =
   | 'medicines'
   | 'billing'
   | 'ipd'
+  | 'ot'
   | 'users'
   | 'configuration';
+
+// ============================================
+// OT (OPERATION THEATRE) TYPES
+// ============================================
+
+export type OTStatus = 'AVAILABLE' | 'OCCUPIED' | 'MAINTENANCE' | 'CLEANING';
+export type SurgeryStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'POSTPONED';
+export type SurgeryPriority = 'ELECTIVE' | 'URGENT' | 'EMERGENCY';
+export type SurgeryTeamRole = 'SURGEON' | 'ASSISTANT_SURGEON' | 'ANESTHESIOLOGIST' | 'SCRUB_NURSE' | 'CIRCULATING_NURSE' | 'TECHNICIAN';
+
+export interface ProcedureCatalog {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+  defaultDuration?: number;
+  isActive: boolean;
+}
+
+export interface OperationTheatre {
+  id: string;
+  name: string;
+  hospitalId: string;
+  type: string;
+  location?: string;
+  status: OTStatus;
+  isActive: boolean;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Surgery {
+  id: string;
+  patientId: string;
+  admissionId?: string;
+  operationTheatreId?: string;
+  procedureCatalogId?: string;
+  procedureName: string;
+  surgeonId: string;
+  scheduledAt: string;
+  startTime?: string;
+  endTime?: string;
+  status: SurgeryStatus;
+  priority: SurgeryPriority;
+  notes?: string;
+  anesthesiaType?: string;
+  complications?: string;
+  surgicalNotes?: string;
+  implantsUsed?: string;
+  patient?: Patient;
+  surgeon?: User;
+  operationTheatre?: OperationTheatre;
+  procedureCatalog?: ProcedureCatalog;
+  admission?: Admission;
+  teamMembers?: SurgeryTeamMember[];
+  preOpChecklist?: PreOperativeChecklist;
+  postOpRecord?: PostOperativeRecord;
+  inventoryUsage?: OTInventoryUsage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SurgeryTeamMember {
+  id: string;
+  surgeryId: string;
+  userId: string;
+  role: SurgeryTeamRole;
+  isLead: boolean;
+  user?: User;
+}
+
+export interface PreOperativeChecklist {
+  id: string;
+  surgeryId: string;
+  consentSigned: boolean;
+  labTestsCompleted: boolean;
+  anesthesiaClearance: boolean;
+  bloodAvailable: boolean;
+  fastingConfirmed: boolean;
+  allergyReview: boolean;
+  notes?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PostOperativeRecord {
+  id: string;
+  surgeryId: string;
+  recoveryNotes?: string;
+  complications?: string;
+  dischargeInstructions?: string;
+  painLevel?: number;
+  recordedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OTInventoryUsage {
+  id: string;
+  surgeryId: string;
+  itemName: string;
+  quantity: number;
+  unit?: string;
+  notes?: string;
+  createdAt: string;
+}
 
 export interface ModuleAccess {
   [key: string]: UserRole[];

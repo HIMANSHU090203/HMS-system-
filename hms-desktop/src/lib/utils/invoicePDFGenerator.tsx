@@ -930,9 +930,9 @@ const InvoicePDFGenerator = {
                   <span class="detail-label">IP No:</span> ${invoiceData.ipNumber || admission.id}
                 </div>
               ` : ''}
-              ${patient.id ? `
+              ${(patient.patientNumber ?? patient.id) ? `
                 <div class="detail-row">
-                  <span class="detail-label">ID No:</span> ${patient.id}
+                  <span class="detail-label">ID No:</span> ${patient.patientNumber ?? patient.id}
                 </div>
               ` : ''}
               <div class="detail-row">

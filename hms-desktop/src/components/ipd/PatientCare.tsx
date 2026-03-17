@@ -4,6 +4,7 @@ import dailyRoundService from '../../lib/api/services/dailyRoundService';
 import vitalSignService from '../../lib/api/services/vitalSignService';
 import userService from '../../lib/api/services/userService';
 import { UserRole } from '../../lib/api/types';
+import { autoSelectIfZero, autoSelectIfZeroMouseDown } from '../../lib/utils/numberInput';
 
 const PatientCare = ({ onBack, isAuthenticated, user }) => {
   const [currentAdmissions, setCurrentAdmissions] = useState([]);
@@ -588,6 +589,8 @@ const PatientCare = ({ onBack, isAuthenticated, user }) => {
                   name: 'temperature',
                   value: vitalSignForm.temperature,
                   onChange: handleVitalSignInputChange,
+                  onFocus: autoSelectIfZero,
+                  onMouseDown: autoSelectIfZeroMouseDown,
                   step: '0.1',
                   min: '30',
                   max: '45',
@@ -616,6 +619,8 @@ const PatientCare = ({ onBack, isAuthenticated, user }) => {
                   name: 'heartRate',
                   value: vitalSignForm.heartRate,
                   onChange: handleVitalSignInputChange,
+                  onFocus: autoSelectIfZero,
+                  onMouseDown: autoSelectIfZeroMouseDown,
                   min: '0',
                   max: '300',
                   style: { width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #dee2e6' }
@@ -630,6 +635,8 @@ const PatientCare = ({ onBack, isAuthenticated, user }) => {
                   name: 'respiratoryRate',
                   value: vitalSignForm.respiratoryRate,
                   onChange: handleVitalSignInputChange,
+                  onFocus: autoSelectIfZero,
+                  onMouseDown: autoSelectIfZeroMouseDown,
                   min: '0',
                   max: '100',
                   style: { width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #dee2e6' }
@@ -644,6 +651,8 @@ const PatientCare = ({ onBack, isAuthenticated, user }) => {
                   name: 'oxygenSaturation',
                   value: vitalSignForm.oxygenSaturation,
                   onChange: handleVitalSignInputChange,
+                  onFocus: autoSelectIfZero,
+                  onMouseDown: autoSelectIfZeroMouseDown,
                   min: '0',
                   max: '100',
                   step: '0.1',
@@ -659,6 +668,8 @@ const PatientCare = ({ onBack, isAuthenticated, user }) => {
                   name: 'weight',
                   value: vitalSignForm.weight,
                   onChange: handleVitalSignInputChange,
+                  onFocus: autoSelectIfZero,
+                  onMouseDown: autoSelectIfZeroMouseDown,
                   min: '0',
                   step: '0.1',
                   style: { width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #dee2e6' }
@@ -673,6 +684,8 @@ const PatientCare = ({ onBack, isAuthenticated, user }) => {
                   name: 'height',
                   value: vitalSignForm.height,
                   onChange: handleVitalSignInputChange,
+                  onFocus: autoSelectIfZero,
+                  onMouseDown: autoSelectIfZeroMouseDown,
                   min: '0',
                   step: '0.1',
                   style: { width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #dee2e6' }

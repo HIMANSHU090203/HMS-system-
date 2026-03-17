@@ -490,6 +490,7 @@ export const getLabTestStats = async (req: AuthRequest, res: Response) => {
       labTestsByStatus,
       labTestsByTest,
       recentLabTests,
+      labTestsByDoctorRaw,
     ] = await Promise.all([
       prisma.labTest.count(),
       prisma.labTest.groupBy({
@@ -507,7 +508,26 @@ export const getLabTestStats = async (req: AuthRequest, res: Response) => {
           },
         },
       }),
+      prisma.labTest.groupBy({
+        by: ['orderedBy'],
+        _count: { orderedBy: true },
+      }),
     ]);
+
+    const doctorIds = labTestsByDoctorRaw.map((r) => r.orderedBy).filter(Boolean);
+    const doctors = doctorIds.length
+      ? await prisma.user.findMany({
+          where: { id: { in: doctorIds } },
+          select: { id: true, fullName: true },
+        })
+      : [];
+    const doctorMap = Object.fromEntries(doctors.map((d) => [d.id, d.fullName || d.id]));
+
+    const labTestsByDoctor = labTestsByDoctorRaw.map((r) => ({
+      orderedBy: r.orderedBy,
+      doctorName: doctorMap[r.orderedBy] || r.orderedBy,
+      count: r._count.orderedBy,
+    }));
 
     res.json({
       success: true,
@@ -516,6 +536,7 @@ export const getLabTestStats = async (req: AuthRequest, res: Response) => {
         labTestsByStatus,
         labTestsByTest,
         recentLabTests,
+        labTestsByDoctor,
       },
     });
   } catch (error) {

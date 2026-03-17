@@ -78,11 +78,11 @@ const PatientManagement = () => {
       console.log(`✅ Loaded ${allergies.allergies?.length || 0} allergies from catalog`);
       console.log(`✅ Loaded ${conditions.conditions?.length || 0} chronic conditions from catalog`);
       
-      if ((allergies.allergies?.length || 0) < 23) {
-        console.warn(`⚠️  Expected 23 allergies but only ${allergies.allergies?.length || 0} loaded. Check if all items are active in database.`);
+      if ((allergies.allergies?.length || 0) < 50) {
+        console.warn(`⚠️  Expected 50+ allergies but only ${allergies.allergies?.length || 0} loaded. Check if all items are active in database.`);
       }
-      if ((conditions.conditions?.length || 0) < 26) {
-        console.warn(`⚠️  Expected 26 conditions but only ${conditions.conditions?.length || 0} loaded. Check if all items are active in database.`);
+      if ((conditions.conditions?.length || 0) < 50) {
+        console.warn(`⚠️  Expected 50+ conditions but only ${conditions.conditions?.length || 0} loaded. Check if all items are active in database.`);
       }
     } catch (err) {
       console.error('Load catalog error:', err);
@@ -440,7 +440,8 @@ const PatientManagement = () => {
   // Filter conditions based on search term
   const filteredConditions = conditionCatalog.filter(condition =>
     condition.name.toLowerCase().includes(conditionSearchTerm.toLowerCase()) ||
-    condition.category.toLowerCase().includes(conditionSearchTerm.toLowerCase())
+    condition.category.toLowerCase().includes(conditionSearchTerm.toLowerCase()) ||
+    (condition.description && condition.description.toLowerCase().includes(conditionSearchTerm.toLowerCase()))
   );
 
   // Toggle condition selection
@@ -490,7 +491,8 @@ const PatientManagement = () => {
   // Filter allergies based on search term
   const filteredAllergies = allergyCatalog.filter(allergy =>
     allergy.name.toLowerCase().includes(allergySearchTerm.toLowerCase()) ||
-    allergy.category.toLowerCase().includes(allergySearchTerm.toLowerCase())
+    allergy.category.toLowerCase().includes(allergySearchTerm.toLowerCase()) ||
+    (allergy.description && allergy.description.toLowerCase().includes(allergySearchTerm.toLowerCase()))
   );
 
   if (loading && patients.length === 0) {
@@ -807,6 +809,7 @@ const PatientManagement = () => {
                   'label',
                   {
                     htmlFor: `allergy-${allergy.id}`,
+                    title: allergy.description || undefined,
                     style: { cursor: 'pointer', flex: 1, fontSize: '14px' }
                   },
                   allergy.name,
@@ -900,6 +903,7 @@ const PatientManagement = () => {
                   'label',
                   {
                     htmlFor: `condition-${condition.id}`,
+                    title: condition.description || undefined,
                     style: { cursor: 'pointer', flex: 1, fontSize: '14px' }
                   },
                   condition.name,
@@ -1180,6 +1184,7 @@ const PatientManagement = () => {
             'div',
             { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' } },
             React.createElement('div', null, React.createElement('strong', null, 'Name:'), ' ', selectedPatient.name),
+            React.createElement('div', null, React.createElement('strong', null, 'Patient ID:'), ' ', (selectedPatient.patientNumber ?? selectedPatient.id) || 'N/A'),
             React.createElement('div', null, React.createElement('strong', null, 'Age:'), ' ', selectedPatient.age),
             React.createElement('div', null, React.createElement('strong', null, 'Gender:'), ' ', selectedPatient.gender),
             React.createElement('div', null, React.createElement('strong', null, 'Phone:'), ' ', selectedPatient.phone),
@@ -1202,6 +1207,7 @@ const PatientManagement = () => {
                 'div',
                 {
                   key: idx,
+                  title: patientCondition.condition?.description || undefined,
                   style: {
                     padding: '6px 12px',
                     backgroundColor: '#E0E7FF',
@@ -1211,6 +1217,11 @@ const PatientManagement = () => {
                   }
                 },
                 patientCondition.condition?.name || 'Unknown Condition',
+                patientCondition.condition?.icdCode && React.createElement(
+                  'span',
+                  { style: { marginLeft: '6px', fontSize: '12px', color: '#6B7280' } },
+                  `[${patientCondition.condition.icdCode}]`
+                ),
                 patientCondition.currentStatus && React.createElement(
                   'span',
                   { style: { marginLeft: '6px', fontSize: '12px', color: '#6B7280' } },
@@ -1230,6 +1241,7 @@ const PatientManagement = () => {
                 'div',
                 {
                   key: idx,
+                  title: patientAllergy.allergy?.description || undefined,
                   style: {
                     padding: '6px 12px',
                     backgroundColor: '#FEF3C7',
@@ -1527,6 +1539,7 @@ const PatientManagement = () => {
                     'label',
                     {
                       htmlFor: `edit-condition-${condition.id}`,
+                      title: condition.description || undefined,
                       style: { cursor: 'pointer', flex: 1, fontSize: '14px' }
                     },
                     condition.name,
@@ -1620,6 +1633,7 @@ const PatientManagement = () => {
                   'label',
                   {
                     htmlFor: `edit-allergy-${allergy.id}`,
+                    title: allergy.description || undefined,
                     style: { cursor: 'pointer', flex: 1, fontSize: '14px' }
                   },
                   allergy.name,

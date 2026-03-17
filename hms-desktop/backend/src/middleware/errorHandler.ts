@@ -42,7 +42,7 @@ export const errorHandler = (
       body: req.body,
       params: req.params,
       query: req.query,
-      userId: (req as any).user?.id,
+      username: (req as any).user?.username,
       statusCode,
       errorType: error.constructor.name,
     });

@@ -209,6 +209,26 @@ const AppointmentManagement = ({ user, isAuthenticated, onNavigate }) => {
     }
   };
 
+  const handleDelete = async (appointment) => {
+    if (!window.confirm(`Are you sure you want to delete this appointment for ${appointment.patient?.name || 'this patient'}? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+      await appointmentService.deleteAppointment(appointment.id);
+      setSuccess('Appointment deleted successfully');
+      await loadAppointments();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Delete appointment error:', err);
+      setError('Error deleting appointment: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString();
   };
@@ -626,9 +646,17 @@ const AppointmentManagement = ({ user, isAuthenticated, onNavigate }) => {
                   'button',
                   {
                     onClick: () => handleCancel(appointment),
-                    className: 'text-red-600 hover:text-red-900 cursor-pointer'
+                    className: 'text-red-600 hover:text-red-900 mr-3 cursor-pointer'
                   },
                   'Cancel'
+                ),
+                React.createElement(
+                  'button',
+                  {
+                    onClick: () => handleDelete(appointment),
+                    className: 'text-red-600 hover:text-red-900 cursor-pointer'
+                  },
+                  'Delete'
                 )
               )
             ))

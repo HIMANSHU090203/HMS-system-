@@ -21,10 +21,12 @@ async function main() {
   // Seed Allergy Catalog
   console.log('📝 Seeding allergy catalog...');
   for (const allergy of allergyCatalogData) {
+    const { code, name, category } = allergy;
+    const description = (allergy as { description?: string }).description;
     await prisma.allergyCatalog.upsert({
-      where: { code: allergy.code },
-      update: {},
-      create: allergy,
+      where: { code },
+      update: { name, category, description: description ?? null },
+      create: { code, name, category, description: description ?? undefined, isActive: true },
     });
   }
   console.log(`✅ ${allergyCatalogData.length} allergies seeded`);
@@ -32,10 +34,11 @@ async function main() {
   // Seed Chronic Condition Catalog
   console.log('📝 Seeding chronic condition catalog...');
   for (const condition of chronicConditionData) {
+    const { code, name, category, icdCode, description } = condition as typeof condition[number] & { description?: string };
     await prisma.chronicConditionCatalog.upsert({
-      where: { code: condition.code },
-      update: {},
-      create: condition,
+      where: { code },
+      update: { name, category, icdCode: icdCode ?? null, description: description ?? null },
+      create: { code, name, category, icdCode: icdCode ?? undefined, description: description ?? undefined, isActive: true },
     });
   }
   console.log(`✅ ${chronicConditionData.length} chronic conditions seeded`);

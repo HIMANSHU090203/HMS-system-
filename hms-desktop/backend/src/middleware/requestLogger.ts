@@ -9,7 +9,7 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
     url: req.url,
     ip: req.ip,
     userAgent: req.get('user-agent'),
-    userId: (req as any).user?.id,
+    username: (req as any).user?.username,
   });
   
   // Override res.end to log response
@@ -23,7 +23,7 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
     
     logger[logLevel](`📤 ${statusColor} ${req.method} ${req.path} - ${res.statusCode}`, {
       duration: `${duration}ms`,
-      userId: (req as any).user?.id,
+      username: (req as any).user?.username,
     });
     
     return originalEnd.call(this, chunk, encoding);

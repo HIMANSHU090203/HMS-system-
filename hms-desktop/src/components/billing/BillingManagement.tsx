@@ -8,8 +8,10 @@ import prescriptionService from '../../lib/api/services/prescriptionService';
 import configService from '../../lib/api/services/configService';
 import InvoicePDFGenerator from '../../lib/utils/invoicePDFGenerator';
 import { useHospitalConfig } from '../../lib/contexts/HospitalConfigContext';
+import { autoSelectIfZero, autoSelectIfZeroMouseDown } from '../../lib/utils/numberInput';
+import ProfitLossPanel from './ProfitLossPanel';
 
-const BillingManagement = () => {
+const BillingManagement = ({ user }) => {
   const { formatCurrency, config } = useHospitalConfig();
   const [patients, setPatients] = useState([]);
   const [selectedPatientId, setSelectedPatientId] = useState('');
@@ -17,6 +19,8 @@ const BillingManagement = () => {
   const [dateTo, setDateTo] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [activePage, setActivePage] = useState('billing'); // 'billing' | 'pl'
+  const isAdmin = user?.role === 'ADMIN';
 
   // Section-wise items storage
   const [sections, setSections] = useState({
@@ -454,16 +458,48 @@ const BillingManagement = () => {
             />
           </div>
         </div>
+        {isAdmin && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => setActivePage('billing')}
+              style={{
+                padding: '6px 10px',
+                border: '1px solid #C8C8C8',
+                backgroundColor: activePage === 'billing' ? '#0078D4' : '#FFFFFF',
+                color: activePage === 'billing' ? '#FFFFFF' : '#000000',
+                cursor: 'pointer',
+              }}
+            >
+              Billing
+            </button>
+            <button
+              onClick={() => setActivePage('pl')}
+              style={{
+                padding: '6px 10px',
+                border: '1px solid #C8C8C8',
+                backgroundColor: activePage === 'pl' ? '#0078D4' : '#FFFFFF',
+                color: activePage === 'pl' ? '#FFFFFF' : '#000000',
+                cursor: 'pointer',
+              }}
+            >
+              Profit &amp; Loss
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Section-wise Items Display */}
-      <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #C8C8C8', marginBottom: '8px' }}>
-        {/* Header with title */}
-        <div style={{ padding: '6px 8px', borderBottom: '1px solid #C8C8C8' }}>
-          <h2 style={{ fontSize: '14px', fontWeight: '600', color: '#000000', margin: 0 }}>
-            Billable Items (Section-wise)
-          </h2>
-        </div>
+      {activePage === 'pl' && isAdmin ? (
+        <ProfitLossPanel user={user} />
+      ) : (
+        <>
+          {/* Section-wise Items Display */}
+          <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #C8C8C8', marginBottom: '8px' }}>
+            {/* Header with title */}
+            <div style={{ padding: '6px 8px', borderBottom: '1px solid #C8C8C8' }}>
+              <h2 style={{ fontSize: '14px', fontWeight: '600', color: '#000000', margin: 0 }}>
+                Billable Items (Section-wise)
+              </h2>
+            </div>
 
         {/* Section Tabs */}
         <div style={{ borderBottom: '1px solid #C8C8C8' }}>
@@ -589,6 +625,8 @@ const BillingManagement = () => {
                   min={0} 
                   max={100} 
                   value={globalDiscountPct === 0 ? '' : globalDiscountPct} 
+                  onFocus={autoSelectIfZero}
+                  onMouseDown={autoSelectIfZeroMouseDown}
                   onChange={(e) => {
                     const val = e.target.value;
                     if (val === '' || val === '-') {
@@ -610,6 +648,8 @@ const BillingManagement = () => {
                   type="number" 
                   min={0} 
                   value={taxPct === 0 ? '' : taxPct} 
+                  onFocus={autoSelectIfZero}
+                  onMouseDown={autoSelectIfZeroMouseDown}
                   onChange={(e) => {
                     const val = e.target.value;
                     if (val === '' || val === '-') {
@@ -707,6 +747,8 @@ const BillingManagement = () => {
                             <input
                               type="number"
                               value={item.quantity === 0 ? '' : item.quantity}
+                              onFocus={autoSelectIfZero}
+                              onMouseDown={autoSelectIfZeroMouseDown}
                               onChange={(e) => {
                                 const val = e.target.value;
                                 if (val === '' || val === '-') {
@@ -731,6 +773,8 @@ const BillingManagement = () => {
                             <input
                               type="number"
                               value={item.unitPrice === 0 ? '' : item.unitPrice}
+                              onFocus={autoSelectIfZero}
+                              onMouseDown={autoSelectIfZeroMouseDown}
                               onChange={(e) => {
                                 const val = e.target.value;
                                 if (val === '' || val === '-') {
@@ -816,7 +860,9 @@ const BillingManagement = () => {
             <span className="text-green-600">{formatCurrency(totals.grand)}</span>
           </div>
         </div>
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

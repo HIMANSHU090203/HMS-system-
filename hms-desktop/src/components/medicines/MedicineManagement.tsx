@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import medicineService from '../../lib/api/services/medicineService';
 import InfoButton from '../common/InfoButton';
 import { getInfoContent } from '../../lib/infoContent';
@@ -6,9 +6,12 @@ import OrderManagement from './OrderManagement';
 import ImportCatalogWizard from './ImportCatalogWizard';
 import { useHospitalConfig } from '../../lib/contexts/HospitalConfigContext';
 import { formatCurrencySync } from '../../lib/utils/currencyAndTimezone';
+import { autoSelectIfZero, autoSelectIfZeroMouseDown } from '../../lib/utils/numberInput';
 
 const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
-  const { formatCurrency } = useHospitalConfig();
+  const { formatCurrency, config, displayCurrency, baseCurrency, refreshConfig } = useHospitalConfig();
+  const directlyFetchedCurrencyRef = useRef(null);
+  const [currentDisplayCurrency, setCurrentDisplayCurrency] = useState(null);
   
   // CRITICAL: Force reload config from database when component mounts
   React.useEffect(() => {
@@ -140,16 +143,16 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
       currenciesMatch: baseCurrency === displayCurrency,
       shouldConvert: baseCurrency !== displayCurrency && !!baseCurrency && !!displayCurrency,
       timestamp: new Date().toISOString(),
-      configDisplayCurrency: configContext?.config?.displayCurrency,
-      contextBaseCurrency: configContext?.baseCurrency,
-      contextDisplayCurrency: configContext?.displayCurrency
+      configDisplayCurrency: config?.displayCurrency,
+      contextBaseCurrency: baseCurrency,
+      contextDisplayCurrency: displayCurrency
     });
     
     // If displayCurrency changed, force a re-conversion of prices
     if (baseCurrency && displayCurrency && baseCurrency !== displayCurrency) {
       console.log('[MedicineManagement] 💡 Display currency changed - prices will be converted');
     }
-  }, [baseCurrency, displayCurrency, configContext?.config?.displayCurrency, configContext?.baseCurrency, configContext?.displayCurrency]);
+  }, [baseCurrency, displayCurrency, config?.displayCurrency]);
   
   // Also listen for when displayCurrency changes in context (moved after medicines declaration)
   React.useEffect(() => {
@@ -519,6 +522,14 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
       )
     );
   }
+
+  const finalDisplayCurrency =
+    (config?.displayCurrency && typeof config.displayCurrency === 'string'
+      ? config.displayCurrency.trim().toUpperCase()
+      : null) ||
+    currentDisplayCurrency ||
+    displayCurrency ||
+    'INR';
 
   return React.createElement(
     'div',
@@ -983,6 +994,8 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                   step: '0.01',
                   value: formData.price,
                   onChange: handleInputChange,
+                  onFocus: autoSelectIfZero,
+                  onMouseDown: autoSelectIfZeroMouseDown,
                   className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
                 })
               ),
@@ -1001,6 +1014,8 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                   min: '0',
                   value: formData.quantity,
                   onChange: handleInputChange,
+                  onFocus: autoSelectIfZero,
+                  onMouseDown: autoSelectIfZeroMouseDown,
                   className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
                 })
               ),
@@ -1019,6 +1034,8 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                   min: '0',
                   value: formData.lowStockThreshold,
                   onChange: handleInputChange,
+                  onFocus: autoSelectIfZero,
+                  onMouseDown: autoSelectIfZeroMouseDown,
                   className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
                 })
               )
@@ -1135,8 +1152,7 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                 React.createElement('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' }, 
                   (() => {
                     const price = parseFloat(medicine.price || 0);
-                    // Use converted price if available, otherwise use original
-                    const displayPrice = convertedPrices[medicine.id] !== undefined ? convertedPrices[medicine.id] : price;
+                    const displayPrice = price; // Application uses INR only - no conversion
                     return formatCurrency(displayPrice);
                   })()
                 ),
@@ -1212,6 +1228,8 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                   name: 'quantity',
                   value: stockUpdateForm.quantity,
                   onChange: handleStockUpdateFormChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                   required: true,
                   min: '1',
                   className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500'
@@ -1504,6 +1522,8 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                 name: 'price',
                 value: editFormData.price || 0,
                 onChange: handleEditInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 required: true,
                 min: 0,
                 step: '0.01',
@@ -1519,6 +1539,8 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                 name: 'quantity',
                 value: editFormData.quantity || 0,
                 onChange: handleEditInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 min: 0,
                 className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
               })
@@ -1532,6 +1554,8 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                 name: 'lowStockThreshold',
                 value: editFormData.lowStockThreshold || 10,
                 onChange: handleEditInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 min: 0,
                 className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
               })

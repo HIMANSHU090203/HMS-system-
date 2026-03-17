@@ -22,7 +22,7 @@ export const getAllAllergies = async (req: AuthRequest, res: Response) => {
 
 export const addAllergy = async (req: AuthRequest, res: Response) => {
   try {
-    const { code, name, category } = req.body;
+    const { code, name, category, description } = req.body;
 
     // Standardize and validate category to prevent drift
     const allowedCategories = ['Food', 'Drug', 'Environmental', 'Chemical', 'Biological'] as const;
@@ -42,7 +42,7 @@ export const addAllergy = async (req: AuthRequest, res: Response) => {
     }
 
     const allergy = await prisma.allergyCatalog.create({
-      data: { code, name, category: canonicalCategory, isActive: true },
+      data: { code, name, category: canonicalCategory, description: description || undefined, isActive: true },
     });
 
     res.json({ success: true, data: { allergy } });
@@ -70,10 +70,10 @@ export const getAllChronicConditions = async (req: AuthRequest, res: Response) =
 
 export const addChronicCondition = async (req: AuthRequest, res: Response) => {
   try {
-    const { code, name, category } = req.body;
+    const { code, name, category, icdCode, description } = req.body;
 
     const condition = await prisma.chronicConditionCatalog.create({
-      data: { code, name, category, isActive: true },
+      data: { code, name, category, icdCode: icdCode || undefined, description: description || undefined, isActive: true },
     });
 
     res.json({ success: true, data: { condition } });

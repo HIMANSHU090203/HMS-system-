@@ -346,6 +346,52 @@ export const infoContent = {
     }
   },
 
+  // OT (Operation Theatre) Management Module
+  ot: {
+    title: "Operation Theatre (OT)",
+    description: "Manage operation theatres, surgery scheduling, surgical team, pre-operative and post-operative care, and OT billing",
+    sections: {
+      overview: {
+        title: "OT Overview",
+        content: "The OT module manages surgeries from scheduling to completion: OT room allocation, surgeon and team assignment, pre-op checklist, intra-operative recording, and post-op recovery. It integrates with IPD for admitted patients and with billing for surgery charges."
+      },
+      scheduling: {
+        title: "Surgery Scheduling",
+        content: "Schedule operations by selecting patient, surgeon, procedure, OT room, and time. You can link the surgery to an IPD admission when the patient is admitted."
+      },
+      preOp: {
+        title: "Pre-Operative Care",
+        content: "Complete the pre-operative checklist: consent signed, lab tests done, anesthesia clearance, blood available, fasting confirmed, and allergy review before surgery."
+      },
+      postOp: {
+        title: "Post-Operative Care",
+        content: "Record recovery notes, complications, discharge instructions, and pain level after surgery. This supports handover to the ward and discharge planning."
+      },
+      billing: {
+        title: "OT Billing",
+        content: "Surgery charges (OT room, surgeon fee, anesthesia, implants) are typically included in IPD billing for admitted patients. Standalone day-care surgeries can be billed through the main Billing module."
+      }
+    },
+    fields: {
+      procedure: {
+        title: "Procedure",
+        content: "The surgical procedure to be performed. You can select from the procedure catalog or enter a free-text procedure name."
+      },
+      surgeon: {
+        title: "Surgeon",
+        content: "The lead surgeon responsible for the operation. Select from users with appropriate role (e.g. Doctor)."
+      },
+      otRoom: {
+        title: "OT Room",
+        content: "The operation theatre where the surgery will be performed. Rooms have status: Available, Occupied, Maintenance, or Cleaning."
+      },
+      priority: {
+        title: "Priority",
+        content: "Elective (planned), Urgent, or Emergency. Affects scheduling and ordering."
+      }
+    }
+  },
+
   // IPD Management Module
   ipd: {
     title: "Inpatient Department (IPD)",

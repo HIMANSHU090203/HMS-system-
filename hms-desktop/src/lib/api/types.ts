@@ -733,6 +733,38 @@ export enum PaymentStatus {
   CANCELLED = 'CANCELLED',
 }
 
+export enum ExpenseCategory {
+  SALARY = 'SALARY',
+  ELECTRICITY = 'ELECTRICITY',
+  RENT = 'RENT',
+  MAINTENANCE = 'MAINTENANCE',
+  EQUIPMENT = 'EQUIPMENT',
+  SUPPLIES = 'SUPPLIES',
+  OTHER = 'OTHER',
+}
+
+export interface Expense {
+  id: string;
+  category: ExpenseCategory;
+  description: string;
+  amount: number;
+  expenseDate: string;
+  paymentStatus: PaymentStatus;
+  paidAt?: string | null;
+  userId?: string | null;
+  user?: { id: string; fullName: string; role: string } | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProfitLossReport {
+  range: { from: string; to: string };
+  revenue: { opd: number; ipd: number; total: number };
+  expenses: { manual: number; medicinePurchases: number; total: number };
+  profitOrLoss: number;
+}
+
 export interface BillItem {
   type: 'medicine' | 'lab_test' | 'consultation';
   id: string;

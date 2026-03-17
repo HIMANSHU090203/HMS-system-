@@ -408,7 +408,7 @@ const LabTestPDFGenerator = {
                 <span class="patient-label">Patient Name:</span>
                 <span class="patient-value">${patient.name || 'N/A'}</span>
                 <span class="patient-label" style="margin-left: 20mm;">Patient ID:</span>
-                <span class="patient-value">${patient.id || 'N/A'}</span>
+                <span class="patient-value">${(patient.patientNumber ?? patient.id) || 'N/A'}</span>
               </div>
               <div class="patient-row">
                 <span class="patient-label">Age:</span>
