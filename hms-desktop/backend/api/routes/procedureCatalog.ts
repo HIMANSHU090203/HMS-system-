@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { UserRole } from '@prisma/client';
 import { authenticateToken, requireRole } from '../middleware/auth';
 import {
   createProcedure,
@@ -13,8 +14,8 @@ router.use(authenticateToken);
 
 router.get('/', getProcedures);
 router.get('/:id', getProcedureById);
-router.post('/', requireRole('ADMIN', 'DOCTOR'), createProcedure);
-router.put('/:id', requireRole('ADMIN', 'DOCTOR'), updateProcedure);
-router.delete('/:id', requireRole('ADMIN'), deleteProcedure);
+router.post('/', requireRole(UserRole.ADMIN, UserRole.DOCTOR), createProcedure);
+router.put('/:id', requireRole(UserRole.ADMIN, UserRole.DOCTOR), updateProcedure);
+router.delete('/:id', requireRole(UserRole.ADMIN), deleteProcedure);
 
 export { router as procedureCatalogRoutes };

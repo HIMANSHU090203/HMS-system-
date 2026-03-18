@@ -24,7 +24,7 @@
     "backend:seed": "cd backend && npm run prisma:seed",
     "backend:migrate": "cd backend && npm run prisma:migrate",
     "setup": "node scripts/complete-setup.js",
-    "setup:quick": "cd backend && npm run prisma:migrate && npm run prisma:seed && node src/scripts/addSampleUsers.js",
+    "setup:quick": "cd backend && npm run prisma:migrate && npm run prisma:seed && node api/scripts/addSampleUsers.js",
     "test": "npm run test:backend && npm run test:frontend",
     "test:backend": "cd backend && npm run test",
     "test:frontend": "vitest run",
@@ -32,7 +32,7 @@
     "test:frontend:coverage": "vitest run --coverage",
     "test:complete": "node scripts/validate-complete-system.js",
     "validate": "npm run test:complete",
-    "reset:db": "cd backend && npx prisma migrate reset --force && npm run prisma:seed && node src/scripts/addSampleUsers.js",
+    "reset:db": "cd backend && npx prisma migrate reset --force && npm run prisma:seed && node api/scripts/addSampleUsers.js",
     "health": "cd backend && node test-system-diagnostic.js"
   },
   "keywords": [],

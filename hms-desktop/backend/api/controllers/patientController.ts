@@ -106,20 +106,15 @@ function computePatientNumber(name: string, aadharCardNumber?: string | null, pa
   return `${normalizedName}_${last4}`;
 }
 
-/** Ensure patientNumber is unique; if taken, append _2, _3, ... */
-async function ensureUniquePatientNumber(patientNumber: string, excludePatientId?: string): Promise<string> {
-  let candidate = patientNumber;
+/** Ensure patient id (name_last4 format) is unique; if taken, append _2, _3, ... */
+async function ensureUniquePatientId(patientId: string, excludePatientId?: string): Promise<string> {
+  let candidate = patientId;
   let suffix = 1;
   for (;;) {
-    const existing = await prisma.patient.findFirst({
-      where: {
-        patientNumber: candidate,
-        ...(excludePatientId ? { id: { not: excludePatientId } } : {}),
-      },
-    });
-    if (!existing) return candidate;
+    const existing = await prisma.patient.findUnique({ where: { id: candidate } });
+    if (!existing || (excludePatientId && existing.id === excludePatientId)) return candidate;
     suffix++;
-    candidate = `${patientNumber}_${suffix}`;
+    candidate = `${patientId}_${suffix}`;
   }
 }
 
@@ -205,21 +200,23 @@ export const createPatient = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Compute display patient number (normalized name + "_" + last 4 of Aadhar/Passport)
-    const basePatientNumber = computePatientNumber(
+    // Compute patient id: name_last4 (12-digit Aadhar or Passport); fallback if no national id
+    const baseId = computePatientNumber(
       finalPatientData.name,
       finalPatientData.aadharCardNumber,
       finalPatientData.passportNumber
     );
-    const patientNumber = basePatientNumber
-      ? await ensureUniquePatientNumber(basePatientNumber)
-      : undefined;
+    const patientId = baseId
+      ? await ensureUniquePatientId(baseId)
+      : await ensureUniquePatientId(
+          `${(finalPatientData.name.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') || 'patient')}_0000`
+        );
 
-    // Create patient
+    // Create patient with explicit id (human-readable, no CUID)
     const patient = await prisma.patient.create({
       data: {
+        id: patientId,
         ...finalPatientData,
-        patientNumber,
       },
     });
 
@@ -460,16 +457,7 @@ export const updatePatient = async (req: AuthRequest, res: Response) => {
     if (updateData.aadharCardNumber !== undefined) updateData.aadharCardNumber = updateData.aadharCardNumber?.trim() || undefined;
     if (updateData.passportNumber !== undefined) updateData.passportNumber = updateData.passportNumber?.trim() || undefined;
 
-    // Recompute display patient number when name or national id changes
-    const effectiveName = updateData.name ?? existingPatient.name;
-    const effectiveAadhar = updateData.aadharCardNumber !== undefined ? updateData.aadharCardNumber : existingPatient.aadharCardNumber;
-    const effectivePassport = updateData.passportNumber !== undefined ? updateData.passportNumber : existingPatient.passportNumber;
-    const basePatientNumber = computePatientNumber(effectiveName, effectiveAadhar, effectivePassport);
-    if (basePatientNumber) {
-      updateData.patientNumber = await ensureUniquePatientNumber(basePatientNumber, existingPatient.id);
-    } else {
-      updateData.patientNumber = null;
-    }
+    // Note: patient id (name_last4) is set only on create; we do not change id on update.
 
     // Check for duplicate Aadhar card number if Aadhar is being updated
     if (updateData.aadharCardNumber && updateData.aadharCardNumber !== existingPatient.aadharCardNumber) {

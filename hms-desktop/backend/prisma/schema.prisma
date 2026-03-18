@@ -176,8 +176,9 @@ model MedicineCatalog {
 }
 
 // 2. Patients table - Patient information and medical profile
+// id = human-readable: normalized name + "_" + last 4 of Aadhar (12 digits) or Passport (e.g. suryansh_puri_5849)
 model Patient {
-  id                    String      @id @default(cuid())
+  id                    String      @id // No default: set explicitly on create (name_last4 format)
   name                  String
   dateOfBirth           DateTime    @map("date_of_birth")
   gender                Gender
@@ -191,7 +192,8 @@ model Patient {
   emergencyContactName  String?     @map("emergency_contact_name")
   emergencyContactPhone String?     @map("emergency_contact_phone")
   patientType           PatientType @default(OUTPATIENT) @map("patient_type")
-  patientNumber         String?     @unique @map("patient_number") // Display ID: normalized name + "_" + last 4 of Aadhar/Passport (e.g. alex_carry_5849)
+  patientNumber         String?     @unique @map("patient_number") // Deprecated: will be removed; use id for display
+  oldId                 String?     @map("old_id") // Former CUID (for rollback); optional
   createdAt             DateTime    @default(now()) @map("created_at")
   updatedAt             DateTime    @updatedAt @map("updated_at")
 

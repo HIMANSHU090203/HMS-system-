@@ -1,45 +1,59 @@
-# Hospital Management System (HMS)
+# ZenHosp – Hospital Management System (HMS)
 
 ## 🏥 Project Overview
 
-A comprehensive desktop-based Hospital Management System built with Electron, React, and TypeScript. This system is designed for hospital staff to manage patients, appointments, laboratory tests, pharmacy operations, and billing.
+A comprehensive desktop-based Hospital Management System (**ZenHosp**) built with Electron, React, and TypeScript. It supports patient management, appointments, consultations, prescriptions, laboratory tests, pharmacy, billing, IPD (inpatient), and OT (operation theatre) management.
 
 ## 🛠️ Technology Stack
 
 ### Frontend
-- **Framework:** React 18+ with TypeScript
-- **UI Library:** Tailwind CSS + shadcn/ui components
-- **Desktop:** Electron (for .exe packaging)
-- **State Management:** React Context API + React Query
+- **Framework:** React 19 with TypeScript
+- **UI:** Tailwind CSS
+- **Desktop:** Electron (packaged with Electron Forge / Squirrel)
+- **Build:** Vite (via Electron Forge plugin)
+- **State:** React Context API (e.g. HospitalConfigContext)
 - **Forms:** React Hook Form + Zod validation
-- **Calendar:** FullCalendar React
-- **Notifications:** Electron Native + React Toast
+- **HTTP:** Axios (with auth interceptors)
 
 ### Backend
-- **Runtime:** Node.js 18+ with Express.js
+- **Runtime:** Node.js 18+ with Express 5
 - **Language:** TypeScript
-- **ORM:** Prisma (for PostgreSQL)
-- **Authentication:** JWT + bcrypt
-- **Real-time:** Socket.IO for WebSocket communication
-- **File Upload:** Multer (local storage)
-- **PDF Generation:** PDFKit or react-pdf
+- **ORM:** Prisma (PostgreSQL)
+- **Authentication:** JWT (jsonwebtoken) + bcrypt
+- **Validation:** Zod
+- **Logging:** Winston
+- **Security:** Helmet, CORS, rate limiting, input sanitization
+- **File Upload:** Multer (e.g. hospital logo)
+- **Scheduling:** node-cron (e.g. currency exchange rates)
 
 ### Database
-- **RDBMS:** PostgreSQL 14+ (Central Server)
-- **Connection:** SSL/TLS encrypted
-- **Backup:** Automated daily backups
+- **RDBMS:** PostgreSQL 14+
+- **Schema & migrations:** `backend/prisma/schema.prisma` and `backend/prisma/migrations/`
 
 ## 📁 Project Structure
 
 ```
 hms-desktop/
 ├── src/                    # Frontend React application
-├── backend/                # Node.js Express API server
-├── database/               # Database schemas and migrations
-├── docs/                   # Documentation
-├── package.json            # Dependencies and scripts
-└── README.md              # This file
+│   ├── main.ts             # Electron main process
+│   ├── renderer.tsx        # React entry point
+│   ├── components/         # App, dashboard, patients, IPD, OT, etc.
+│   ├── lib/                # API client, services, hooks, utils
+│   ├── config/             # Environment (API_URL, etc.)
+│   └── types/              # Shared TypeScript types
+├── backend/
+│   ├── api/                # Backend API (entry and all server code)
+│   │   ├── index.ts        # Express app, routes, health check
+│   │   ├── routes/         # Auth, patients, appointments, etc.
+│   │   ├── controllers/    # Business logic
+│   │   └── middleware/     # Auth, error handling, rate limit
+│   └── prisma/             # Schema, seed, migrations
+├── docs/                   # (See repository root /docs for full documentation)
+├── package.json            # Scripts: start, build, make, test
+└── README.md               # This file
 ```
+
+**Note:** Backend application code lives under `backend/api/` (not `backend/src/`). See `backend/RENAME_SRC_TO_API.md` for the one-time rename that was applied.
 
 ## 🚀 Getting Started
 
@@ -61,22 +75,20 @@ hms-desktop/
    npm run start
    ```
 
-## 📋 Development Timeline
+## 📋 Documentation
 
-This project follows an 8-week development plan with 4 sprints:
+- **Full docs index:** See the repository root folder `/docs` (README, ARCHITECTURE, BACKEND_API, PATIENT_ID, modules for IPD and OT).
+- **Patient ID migration:** `backend/docs/MIGRATION_PATIENT_ID.md`
+- **Next tasks:** Repository root `next_tasks.md` (health check, build, tests, security, deployment)
 
-- **Sprint 1:** Foundation & User Management (1 Week, 3 Days)
-- **Sprint 2:** Patient & Appointment Management (2 Weeks, 3 Days)
-- **Sprint 3:** Laboratory & Pharmacy Management (2 Weeks)
-- **Sprint 4:** Billing, Testing & Release (2 Weeks)
+## 👥 Target Users (roles)
 
-## 👥 Target Users
-
-- **Admin:** System administration and user management
-- **Doctor:** Patient management, appointments, prescriptions
-- **Lab Technician:** Lab test management and results
-- **Pharmacy Staff:** Medicine inventory and prescription fulfillment
-- **Accounts:** Billing and financial management
+- **Admin:** Full access (users, config, all modules)
+- **Doctor:** Patients, appointments, consultations, prescriptions, lab tests, IPD, OT
+- **Receptionist:** Patients, appointments, billing, IPD, OT
+- **Lab Technician:** Patients, lab tests
+- **Pharmacy:** Patients, prescriptions, medicines
+- **Nurse / Ward Manager / Nursing Supervisor:** IPD and OT (sub-module access varies)
 
 ## 🔒 Security Features
 
@@ -88,14 +100,17 @@ This project follows an 8-week development plan with 4 sprints:
 
 ## 📊 Key Features
 
-- Patient registration and management
-- Appointment scheduling with calendar
-- Laboratory test ordering and results
-- Prescription management
-- Pharmacy inventory control
-- Automated billing with GST
-- Real-time notifications
-- Comprehensive reporting
+- Patient registration and management (human-readable patient ID: name_last4)
+- Appointment scheduling
+- Consultations and prescriptions (with dispensing and PDF)
+- Laboratory test ordering, results, and catalog
+- Pharmacy: medicine catalog, inventory, orders, low-stock alerts
+- OPD and IPD billing; finance and expense tracking
+- IPD: wards, beds, admissions, daily rounds, vital signs, nursing shifts, discharge summaries
+- OT: operation theatres, surgery scheduling, pre/post-op care, team, inventory, billing
+- Hospital configuration (single-tenant), catalogs (diagnosis, allergy, medicine, test, procedure)
+- Audit logging; drug interaction safety checks
+- Currency (INR base; optional display currency and exchange rates)
 
 ## 🧪 Testing
 
@@ -118,5 +133,5 @@ MIT License
 
 ---
 
-**Status:** In Development - Sprint 1, Day 1
-**Last Updated:** October 10, 2025
+**Status:** In development; core OPD, IPD, and OT modules implemented.  
+**Last Updated:** March 2026

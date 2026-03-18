@@ -489,7 +489,7 @@ const PrescriptionPDFGenerator = {
             </div>
             <div class="patient-details">
               <div class="patient-line">
-                <strong>ID:</strong> ${(patient.patientNumber ?? patient.id) || 'N/A'} - ${patient.name || 'Patient Name'} (${(patient.gender || 'M').charAt(0).toUpperCase()})
+                <strong>ID:</strong> ${(patient.id || 'N/A')} - ${patient.name || 'Patient Name'} (${(patient.gender || 'M').charAt(0).toUpperCase()})
               </div>
               <div class="patient-line">
                 <strong>Address:</strong> ${patient.address || 'N/A'}

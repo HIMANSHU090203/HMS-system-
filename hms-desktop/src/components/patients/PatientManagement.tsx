@@ -669,16 +669,16 @@ const PatientManagement = () => {
               name: 'aadharCardNumber',
               value: formData.aadharCardNumber,
               onChange: handleInputChange,
-              placeholder: 'Enter 16-digit Aadhar number',
-              maxLength: 16,
-              pattern: '[0-9]{16}',
-              title: 'Aadhar card number must be exactly 16 digits',
+              placeholder: 'Enter 12-digit Aadhar number',
+              maxLength: 12,
+              pattern: '[0-9]{12}',
+              title: 'Aadhar card number must be exactly 12 digits',
               className: 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
             }),
             React.createElement(
               'p',
               { className: 'mt-1 text-xs text-gray-500' },
-              'Unique 16-digit identity number (optional but recommended for Indian patients)'
+              'Unique 12-digit identity number (optional but recommended for Indian patients)'
             )
           ) : React.createElement(
             'div',
@@ -1184,7 +1184,7 @@ const PatientManagement = () => {
             'div',
             { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' } },
             React.createElement('div', null, React.createElement('strong', null, 'Name:'), ' ', selectedPatient.name),
-            React.createElement('div', null, React.createElement('strong', null, 'Patient ID:'), ' ', (selectedPatient.patientNumber ?? selectedPatient.id) || 'N/A'),
+            React.createElement('div', null, React.createElement('strong', null, 'Patient ID:'), ' ', selectedPatient.id || 'N/A'),
             React.createElement('div', null, React.createElement('strong', null, 'Age:'), ' ', selectedPatient.age),
             React.createElement('div', null, React.createElement('strong', null, 'Gender:'), ' ', selectedPatient.gender),
             React.createElement('div', null, React.createElement('strong', null, 'Phone:'), ' ', selectedPatient.phone),
@@ -1433,10 +1433,10 @@ const PatientManagement = () => {
               name: 'aadharCardNumber',
               value: formData.aadharCardNumber,
               onChange: handleInputChange,
-              placeholder: 'Aadhar Card Number (16 digits)',
-              maxLength: 16,
-              pattern: '[0-9]{16}',
-              title: 'Aadhar card number must be exactly 16 digits',
+              placeholder: 'Aadhar Card Number (12 digits)',
+              maxLength: 12,
+              pattern: '[0-9]{12}',
+              title: 'Aadhar card number must be exactly 12 digits',
               className: 'px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
             }) : React.createElement('input', {
               type: 'text',

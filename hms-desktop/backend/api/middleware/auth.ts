@@ -146,6 +146,22 @@ export const requireDoctor = requireRole(UserRole.DOCTOR);
 export const requireLabTech = requireRole(UserRole.LAB_TECH);
 export const requirePharmacy = requireRole(UserRole.PHARMACY);
 export const requireReceptionist = requireRole(UserRole.RECEPTIONIST);
+export const requireNurse = requireRole(UserRole.NURSE);
+export const requireWardManager = requireRole(UserRole.WARD_MANAGER);
+export const requireNursingSupervisor = requireRole(UserRole.NURSING_SUPERVISOR);
+
+// Combined role helpers for common IPD/clinical use cases
+export const requireNursingStaff = requireRole(
+  UserRole.NURSE,
+  UserRole.NURSING_SUPERVISOR,
+  UserRole.WARD_MANAGER
+);
+export const requireClinicalStaff = requireRole(
+  UserRole.DOCTOR,
+  UserRole.NURSE,
+  UserRole.NURSING_SUPERVISOR,
+  UserRole.WARD_MANAGER
+);
 
 // Role-based access control helpers
 export const canAccessPatientData = (userRole: UserRole): boolean => {
@@ -155,11 +171,14 @@ export const canAccessPatientData = (userRole: UserRole): boolean => {
     UserRole.LAB_TECH,
     UserRole.PHARMACY,
     UserRole.RECEPTIONIST,
-  ].includes(userRole as any);
+    UserRole.NURSE,
+    UserRole.WARD_MANAGER,
+    UserRole.NURSING_SUPERVISOR,
+  ].includes(userRole);
 };
 
 export const canAccessFinancialData = (userRole: UserRole): boolean => {
-  return [UserRole.ADMIN, UserRole.RECEPTIONIST].includes(userRole as any);
+  return [UserRole.ADMIN, UserRole.RECEPTIONIST].includes(userRole);
 };
 
 export const canManageUsers = (userRole: UserRole): boolean => {
@@ -168,4 +187,25 @@ export const canManageUsers = (userRole: UserRole): boolean => {
 
 export const canManageSystem = (userRole: UserRole): boolean => {
   return userRole === UserRole.ADMIN;
+};
+
+export const canManageIPD = (userRole: UserRole): boolean => {
+  return [
+    UserRole.ADMIN,
+    UserRole.DOCTOR,
+    UserRole.NURSE,
+    UserRole.WARD_MANAGER,
+    UserRole.NURSING_SUPERVISOR,
+  ].includes(userRole);
+};
+
+export const canManageOT = (userRole: UserRole): boolean => {
+  return [
+    UserRole.ADMIN,
+    UserRole.DOCTOR,
+    UserRole.RECEPTIONIST,
+    UserRole.NURSE,
+    UserRole.NURSING_SUPERVISOR,
+    UserRole.WARD_MANAGER,
+  ].includes(userRole);
 };

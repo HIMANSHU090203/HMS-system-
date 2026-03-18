@@ -40,7 +40,7 @@ async function setupSystem() {
     await runCommand('npm', ['run', 'prisma:seed'], backendDir, 'Database Seeding');
     
     console.log('👨‍⚕️ Step 4: Adding sample doctors and users...');
-    await runCommand('node', ['src/scripts/addSampleUsers.js'], backendDir, 'Sample Users');
+    await runCommand('node', ['api/scripts/addSampleUsers.js'], backendDir, 'Sample Users');
     
     console.log('🎉 System setup completed successfully!');
     console.log('\n📋 What\'s been set up:');
@@ -75,7 +75,7 @@ async function setupSystem() {
     console.log('   npm install');
     console.log('   npm run prisma:migrate');
     console.log('   npm run prisma:seed');
-    console.log('   node src/scripts/addSampleUsers.js');
+    console.log('   node api/scripts/addSampleUsers.js');
   }
 }
 

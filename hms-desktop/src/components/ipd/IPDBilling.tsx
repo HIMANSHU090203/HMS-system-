@@ -263,7 +263,7 @@ const IPDBilling = ({ onBack, isAuthenticated, user }) => {
         billNumber: billDetails.invoiceNumber || billDetails.id || bill.id,
         billDate: billDetails.createdAt || new Date().toISOString(),
         ipNumber: billDetails.admission?.id || selectedAdmission?.id || '',
-        idNumber: billDetails.patient?.patientNumber ?? billDetails.patient?.id ?? selectedAdmission?.patient?.patientNumber ?? selectedAdmission?.patient?.id ?? '',
+        idNumber: billDetails.patient?.id ?? selectedAdmission?.patient?.id ?? '',
         patient: {
           id: billDetails.patient?.id || selectedAdmission?.patient?.id || '',
           name: billDetails.patient?.name || selectedAdmission?.patient?.name || 'N/A',
