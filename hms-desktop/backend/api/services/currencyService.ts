@@ -73,9 +73,19 @@ export async function fetchExchangeRates(baseCurrency: string = 'USD'): Promise<
  */
 export async function updateExchangeRates(baseCurrency: string = 'USD'): Promise<{ success: boolean; ratesUpdated: number; error?: string }> {
   try {
-    logger.info(`Updating exchange rates for base currency: ${baseCurrency}`);
-    
-    const rates = await fetchExchangeRates(baseCurrency);
+    const normalizedBase = (baseCurrency || 'USD').trim().toUpperCase();
+
+    // Application standard is INR-only; no cross-currency table sync required.
+    if (normalizedBase === 'INR') {
+      logger.info(
+        'Skipping exchange rate sync: hospital base currency is INR (multi-currency disabled for this deployment).'
+      );
+      return { success: true, ratesUpdated: 0 };
+    }
+
+    logger.info(`Updating exchange rates for base currency: ${normalizedBase}`);
+
+    const rates = await fetchExchangeRates(normalizedBase);
     
     if (!rates) {
       return {
@@ -99,7 +109,7 @@ export async function updateExchangeRates(baseCurrency: string = 'USD'): Promise
 
     // Update rates for all supported currencies
     for (const targetCurrency of supportedCurrencies) {
-      if (targetCurrency === baseCurrency) {
+      if (targetCurrency === normalizedBase) {
         continue; // Skip base currency (rate is always 1.0)
       }
 
@@ -111,7 +121,7 @@ export async function updateExchangeRates(baseCurrency: string = 'USD'): Promise
             await prisma.currencyExchangeRate.upsert({
               where: {
                 baseCurrency_targetCurrency_date: {
-                  baseCurrency,
+                  baseCurrency: normalizedBase,
                   targetCurrency,
                   date: today,
                 },
@@ -123,7 +133,7 @@ export async function updateExchangeRates(baseCurrency: string = 'USD'): Promise
                 updatedAt: new Date(),
               },
               create: {
-                baseCurrency,
+                baseCurrency: normalizedBase,
                 targetCurrency,
                 rate,
                 date: today,
@@ -138,7 +148,7 @@ export async function updateExchangeRates(baseCurrency: string = 'USD'): Promise
                 id, base_currency, target_currency, rate, date, source, is_active, created_at, updated_at
               ) VALUES (
                 gen_random_uuid()::text,
-                ${baseCurrency},
+                ${normalizedBase},
                 ${targetCurrency},
                 ${rate}::numeric(12,6),
                 ${today}::timestamp,
@@ -162,7 +172,7 @@ export async function updateExchangeRates(baseCurrency: string = 'USD'): Promise
       }
     }
 
-    logger.info(`Successfully updated ${ratesUpdated} exchange rates for ${baseCurrency}`);
+    logger.info(`Successfully updated ${ratesUpdated} exchange rates for ${normalizedBase}`);
     
     return {
       success: true,

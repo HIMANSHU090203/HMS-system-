@@ -276,16 +276,21 @@ const startServer = async () => {
 // Start the server
 startServer();
 
-// Start currency exchange rate scheduler (runs daily at midnight)
-if (process.env.ENABLE_CURRENCY_SCHEDULER !== 'false') {
+// Currency scheduler: opt-in only. ZenHosp is INR-only by default; multi-currency sync is not needed.
+// Set ENABLE_CURRENCY_SCHEDULER=true to enable daily exchange-rate fetch + DB updates.
+if (process.env.ENABLE_CURRENCY_SCHEDULER === 'true') {
   try {
     const { startCurrencyScheduler } = require('./services/currencyScheduler');
     startCurrencyScheduler();
-    appLogger.info('✅ Currency exchange rate scheduler started');
+    appLogger.info('✅ Currency exchange rate scheduler started (ENABLE_CURRENCY_SCHEDULER=true)');
   } catch (error: any) {
     appLogger.warn('⚠️  Failed to start currency scheduler', error);
     appLogger.warn('Currency rates will not be updated automatically');
   }
+} else {
+  appLogger.info(
+    'Currency scheduler skipped (default for INR-only). Set ENABLE_CURRENCY_SCHEDULER=true to enable.'
+  );
 }
 
 export default app;

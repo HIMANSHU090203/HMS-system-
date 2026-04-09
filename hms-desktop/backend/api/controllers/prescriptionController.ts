@@ -569,6 +569,7 @@ export const dispensePrescription = async (req: AuthRequest, res: Response) => {
       where: { id },
       data: {
         status: PrescriptionStatus.DISPENSED,
+        isDispensed: true,
         dispensedAt: new Date(),
         dispensedBy: userId,
         notes: notes || existingPrescription.prescriptionNumber + ' dispensed',
@@ -810,9 +811,96 @@ export const deletePrescription = async (req: AuthRequest, res: Response) => {
 };
 
 export const getPrescriptionStats = async (req: AuthRequest, res: Response) => {
-  res.json({ success: true, data: { stats: {} } });
+  try {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const [
+      totalPrescriptions,
+      pendingPrescriptions,
+      dispensedPrescriptions,
+      cancelledPrescriptions,
+      dispensedToday,
+      dispensedRevenue,
+      recentPrescriptions,
+    ] = await Promise.all([
+      prisma.prescription.count(),
+      prisma.prescription.count({
+        where: { isDispensed: false, status: PrescriptionStatus.ACTIVE },
+      }),
+      prisma.prescription.count({ where: { status: PrescriptionStatus.DISPENSED } }),
+      prisma.prescription.count({ where: { status: PrescriptionStatus.CANCELLED } }),
+      prisma.prescription.count({
+        where: {
+          status: PrescriptionStatus.DISPENSED,
+          dispensedAt: { gte: startOfDay, lt: endOfDay },
+        },
+      }),
+      prisma.prescription.aggregate({
+        where: { status: PrescriptionStatus.DISPENSED },
+        _sum: { totalAmount: true },
+      }),
+      prisma.prescription.count({
+        where: { createdAt: { gte: sevenDaysAgo } },
+      }),
+    ]);
+
+    const totalRevenue = Number(dispensedRevenue._sum.totalAmount ?? 0);
+
+    res.json({
+      success: true,
+      data: {
+        totalPrescriptions,
+        pendingPrescriptions,
+        /** Same as pendingPrescriptions — UI label "Active" */
+        activePrescriptions: pendingPrescriptions,
+        dispensedPrescriptions,
+        cancelledPrescriptions,
+        totalRevenue,
+        recentPrescriptions,
+        dispensedToday,
+      },
+    });
+  } catch (error) {
+    console.error('Get prescription stats error:', error);
+    res.status(500).json({ success: false, message: 'Failed to load prescription stats' });
+  }
 };
 
 export const getPendingPrescriptions = async (req: AuthRequest, res: Response) => {
-  res.json({ success: true, data: { prescriptions: [] } });
+  try {
+    const prescriptions = await prisma.prescription.findMany({
+      where: {
+        isDispensed: false,
+        status: PrescriptionStatus.ACTIVE,
+      },
+      take: 80,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        patient: {
+          select: { id: true, name: true, phone: true, gender: true, dateOfBirth: true },
+        },
+        doctor: {
+          select: { id: true, fullName: true, role: true },
+        },
+        prescriptionItems: {
+          include: {
+            medicine: { select: { id: true, name: true, code: true } },
+          },
+          orderBy: { rowOrder: 'asc' },
+        },
+      },
+    });
+
+    res.json({ success: true, data: { prescriptions } });
+  } catch (error) {
+    console.error('Get pending prescriptions error:', error);
+    res.status(500).json({ success: false, message: 'Failed to load pending prescriptions' });
+  }
 };

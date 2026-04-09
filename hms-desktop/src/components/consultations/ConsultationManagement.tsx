@@ -382,7 +382,7 @@ const ConsultationManagement = ({ onBack, user, appointmentData }) => {
           React.createElement(
             'h3',
             { style: { margin: 0, color: '#111827', fontSize: '18px', fontWeight: '600' } },
-            showEditForm ? 'Edit Consultation' : 'Add New Consultation'
+            showEditForm ? 'Edit Consultation' : 'Consultation'
           ),
           React.createElement(
             'button',
@@ -696,30 +696,6 @@ const ConsultationManagement = ({ onBack, user, appointmentData }) => {
             size: 'sm',
             variant: 'info'
           })
-        ),
-        activeTab === 'consultations' && React.createElement(
-          'button',
-          {
-            onClick: () => setShowAddForm(true),
-            style: {
-              backgroundColor: '#0078D4',
-              color: '#FFFFFF',
-              border: '1px solid #005A9E',
-              padding: '4px 12px',
-              borderRadius: '2px',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: '400',
-              boxShadow: 'inset 0 1px 0 0 rgba(255, 255, 255, 0.2)'
-            },
-            onMouseOver: (e) => {
-              e.target.style.backgroundColor = '#005A9E';
-            },
-            onMouseOut: (e) => {
-              e.target.style.backgroundColor = '#0078D4';
-            }
-          },
-          '+ New Consultation'
         )
       ),
       // Tabs
@@ -937,7 +913,7 @@ const ConsultationManagement = ({ onBack, user, appointmentData }) => {
               fontSize: '14px'
             }
           },
-          'No appointments available for consultation. Book appointments in the Appointment Management module.'
+          'No appointments available for consultation. Book visits from OPD Flow.'
         ) : React.createElement(
           'div',
           { style: { overflowX: 'auto' } },

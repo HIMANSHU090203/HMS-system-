@@ -17,8 +17,8 @@ router.use(authenticateToken);
 
 // @route   GET /api/consultations
 // @desc    Get all consultations with search and pagination
-// @access  Private (Admin, Doctor)
-router.get('/', requireRole(UserRole.ADMIN, UserRole.DOCTOR), getConsultations);
+// @access  Private (Admin, Doctor, Receptionist — receptionist needs read access for billing)
+router.get('/', requireRole(UserRole.ADMIN, UserRole.DOCTOR, UserRole.RECEPTIONIST), getConsultations);
 
 // @route   GET /api/consultations/stats
 // @desc    Get consultation statistics
@@ -27,8 +27,8 @@ router.get('/stats', requireRole(UserRole.ADMIN, UserRole.DOCTOR), getConsultati
 
 // @route   GET /api/consultations/:id
 // @desc    Get consultation by ID
-// @access  Private (Admin, Doctor)
-router.get('/:id', requireRole(UserRole.ADMIN, UserRole.DOCTOR), getConsultationById);
+// @access  Private (Admin, Doctor, Receptionist)
+router.get('/:id', requireRole(UserRole.ADMIN, UserRole.DOCTOR, UserRole.RECEPTIONIST), getConsultationById);
 
 // @route   POST /api/consultations
 // @desc    Create new consultation

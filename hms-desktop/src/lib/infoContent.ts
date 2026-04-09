@@ -58,6 +58,23 @@ export const infoContent = {
     }
   },
 
+  // OPD Flow (Patient Journey) Module
+  opdFlow: {
+    title: "OPD Flow",
+    description: "Unified patient journey: register or find patient, schedule appointment, then (for doctors) view today's queue, start consultation, and write prescription. One flow from reception to consultation.",
+    sections: {
+      receptionist: {
+        title: "Receptionist Steps",
+        content: "Step 1: Register new patient or search existing. Step 2: Schedule appointment with doctor, date and time. Step 3: Confirm and add patient to today's queue."
+      },
+      doctor: {
+        title: "Doctor Steps",
+        content: "View today's patient queue, start consultation (vitals, diagnosis, notes), then write prescription. Optionally order lab tests."
+      }
+    },
+    fields: {}
+  },
+
   // Appointment Management Module
   appointments: {
     title: "Appointment Management",

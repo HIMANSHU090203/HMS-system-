@@ -4,14 +4,11 @@ import catalogService from '../../lib/api/services/catalogService';
 import LoadingSpinner from '../common/LoadingSpinner';
 import InfoButton from '../common/InfoButton';
 import { getInfoContent } from '../../lib/infoContent';
-import { calculateAge } from '../../lib/utils/ageCalculator';
-
 const PatientManagement = () => {
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [showAddForm, setShowAddForm] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -44,22 +41,10 @@ const PatientManagement = () => {
     allergies: '',
     chronicConditions: '',
     emergencyContactName: '',
-    emergencyContactPhone: ''
+    emergencyContactPhone: '',
+    referredBy: ''
   });
   
-  // Form state for catalog items
-  const [allergyFormData, setAllergyFormData] = useState({
-    allergyId: '',
-    severity: 'Unknown',
-    notes: ''
-  });
-  
-  const [conditionFormData, setConditionFormData] = useState({
-    conditionId: '',
-    currentStatus: 'Active',
-    notes: ''
-  });
-
   useEffect(() => {
     loadPatients();
     loadCatalogs();
@@ -151,97 +136,57 @@ const PatientManagement = () => {
       const { nationality, ...rest } = formData;
       const patientData = { ...rest };
 
-      let createdOrUpdatedPatient;
-      if (selectedPatient) {
-        // Update existing patient
-        createdOrUpdatedPatient = await patientService.updatePatient(selectedPatient.id, patientData);
-        
-        // Handle chronic conditions - get existing ones first
-        const existingConditions = await catalogService.getPatientChronicConditions(selectedPatient.id);
-        const existingConditionIds = existingConditions.conditions.map(c => c.conditionId);
-        
-        // Remove conditions that are no longer selected
-        for (const existingCondition of existingConditions.conditions) {
-          if (!selectedConditions.includes(existingCondition.conditionId)) {
-            await catalogService.deletePatientChronicCondition(selectedPatient.id, existingCondition.id);
-          }
-        }
-        
-        // Add new conditions
-        for (const conditionId of selectedConditions) {
-          if (!existingConditionIds.includes(conditionId)) {
-            await catalogService.addPatientChronicCondition(selectedPatient.id, {
-              conditionId: conditionId,
-              diagnosisDate: new Date().toISOString().split('T')[0],
-              currentStatus: 'Active',
-              notes: ''
-            });
-          }
-        }
-
-        // Handle allergies - get existing ones first
-        const existingAllergies = await catalogService.getPatientAllergies(selectedPatient.id);
-        const existingAllergyIds = existingAllergies.allergies.map(a => a.allergyId);
-        
-        // Remove allergies that are no longer selected
-        for (const existingAllergy of existingAllergies.allergies) {
-          if (!selectedAllergies.includes(existingAllergy.allergyId)) {
-            await catalogService.deletePatientAllergy(selectedPatient.id, existingAllergy.id);
-          }
-        }
-        
-        // Add new allergies
-        for (const allergyId of selectedAllergies) {
-          if (!existingAllergyIds.includes(allergyId)) {
-            const allergy = allergyCatalog.find(a => a.id === allergyId);
-            await catalogService.addPatientAllergy(selectedPatient.id, {
-              allergyId: allergyId,
-              severity: 'Unknown',
-              notes: ''
-            });
-          }
-        }
-        
-        setSuccess('Patient updated successfully!');
-        setShowEditModal(false);
-      } else {
-        // Create new patient
-        createdOrUpdatedPatient = await patientService.createPatient(patientData);
-        
-        // Save selected chronic conditions
-        for (const conditionId of selectedConditions) {
-          try {
-            await catalogService.addPatientChronicCondition(createdOrUpdatedPatient.id, {
-              conditionId: conditionId,
-              diagnosisDate: new Date().toISOString().split('T')[0],
-              currentStatus: 'Active',
-              notes: ''
-            });
-          } catch (conditionError) {
-            console.warn('Failed to add condition:', conditionError);
-            // Continue with other conditions even if one fails
-          }
-        }
-
-        // Save selected allergies
-        for (const allergyId of selectedAllergies) {
-          try {
-            const allergy = allergyCatalog.find(a => a.id === allergyId);
-            await catalogService.addPatientAllergy(createdOrUpdatedPatient.id, {
-              allergyId: allergyId,
-              severity: 'Unknown',
-              notes: ''
-            });
-          } catch (allergyError) {
-            console.warn('Failed to add allergy:', allergyError);
-            // Continue with other allergies even if one fails
-          }
-        }
-        
-        setSuccess('Patient created successfully!');
-        setShowAddForm(false);
+      if (!selectedPatient) {
+        setError('No patient selected for update.');
+        setIsSubmitting(false);
+        return;
       }
-      
+
+      await patientService.updatePatient(selectedPatient.id, patientData);
+
+      // Handle chronic conditions - get existing ones first
+      const existingConditions = await catalogService.getPatientChronicConditions(selectedPatient.id);
+      const existingConditionIds = existingConditions.conditions.map(c => c.conditionId);
+
+      for (const existingCondition of existingConditions.conditions) {
+        if (!selectedConditions.includes(existingCondition.conditionId)) {
+          await catalogService.deletePatientChronicCondition(selectedPatient.id, existingCondition.id);
+        }
+      }
+
+      for (const conditionId of selectedConditions) {
+        if (!existingConditionIds.includes(conditionId)) {
+          await catalogService.addPatientChronicCondition(selectedPatient.id, {
+            conditionId: conditionId,
+            diagnosisDate: new Date().toISOString().split('T')[0],
+            currentStatus: 'Active',
+            notes: ''
+          });
+        }
+      }
+
+      const existingAllergies = await catalogService.getPatientAllergies(selectedPatient.id);
+      const existingAllergyIds = existingAllergies.allergies.map(a => a.allergyId);
+
+      for (const existingAllergy of existingAllergies.allergies) {
+        if (!selectedAllergies.includes(existingAllergy.allergyId)) {
+          await catalogService.deletePatientAllergy(selectedPatient.id, existingAllergy.id);
+        }
+      }
+
+      for (const allergyId of selectedAllergies) {
+        if (!existingAllergyIds.includes(allergyId)) {
+          await catalogService.addPatientAllergy(selectedPatient.id, {
+            allergyId: allergyId,
+            severity: 'Unknown',
+            notes: ''
+          });
+        }
+      }
+
+      setSuccess('Patient updated successfully!');
+      setShowEditModal(false);
+
       // Reset form
       setFormData({
         name: '',
@@ -256,7 +201,8 @@ const PatientManagement = () => {
         allergies: '',
         chronicConditions: '',
         emergencyContactName: '',
-        emergencyContactPhone: ''
+        emergencyContactPhone: '',
+        referredBy: ''
       });
       setSelectedPatient(null);
       setSelectedConditions([]);
@@ -334,7 +280,8 @@ const PatientManagement = () => {
         allergies: patientData.allergies || '',
         chronicConditions: patientData.chronicConditions || '',
         emergencyContactName: patientData.emergencyContactName || '',
-        emergencyContactPhone: patientData.emergencyContactPhone || ''
+        emergencyContactPhone: patientData.emergencyContactPhone || '',
+        referredBy: patientData.referredBy || ''
       });
       setShowEditModal(true);
     } catch (err) {
@@ -433,7 +380,8 @@ const PatientManagement = () => {
       allergies: '',
       chronicConditions: '',
       emergencyContactName: '',
-      emergencyContactPhone: ''
+      emergencyContactPhone: '',
+      referredBy: ''
     });
   };
 
@@ -511,7 +459,7 @@ const PatientManagement = () => {
       { style: { backgroundColor: '#FFFFFF', border: '1px solid #E5E7EB', padding: '24px', marginBottom: '24px' } },
       React.createElement(
         'div',
-        { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid #E5E7EB' } },
+        { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #E5E7EB' } },
         React.createElement(
           'div',
           { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
@@ -526,454 +474,24 @@ const PatientManagement = () => {
             size: 'sm',
             variant: 'info'
           })
-        ),
-        React.createElement(
-          'button',
-          {
-            onClick: () => setShowAddForm(!showAddForm),
-            style: {
-              backgroundColor: '#2563EB',
-              color: '#FFFFFF',
-              border: 'none',
-              padding: '8px 16px',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500'
-            }
-          },
-          showAddForm ? 'Cancel' : '+ Add Patient'
         )
       ),
-
-      // Add Patient Form
-      showAddForm && React.createElement(
+      React.createElement(
         'div',
-        { style: { backgroundColor: '#F9FAFB', padding: '16px', borderBottom: '1px solid #E5E7EB', marginBottom: '24px' } },
-        React.createElement(
-          'h3',
-          { style: { fontSize: '16px', fontWeight: '600', color: '#111827', margin: 0, marginBottom: '16px' } },
-          'Add New Patient'
-        ),
-        React.createElement(
-          'form',
-          { onSubmit: handleSubmit, style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' } },
-          React.createElement(
-            'div',
-            null,
-            React.createElement(
-              'label',
-              { className: 'block text-sm font-medium text-gray-700' },
-              'Name *'
-            ),
-            React.createElement('input', {
-              type: 'text',
-              name: 'name',
-              required: true,
-              value: formData.name,
-              onChange: handleInputChange,
-              className: 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-            })
-          ),
-          React.createElement(
-            'div',
-            null,
-            React.createElement(
-              'label',
-              { className: 'block text-sm font-medium text-gray-700' },
-              'Date of Birth *'
-            ),
-            React.createElement('input', {
-              type: 'date',
-              name: 'dateOfBirth',
-              required: true,
-              max: new Date().toISOString().split('T')[0],
-              value: formData.dateOfBirth,
-              onChange: handleInputChange,
-              className: 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-            })
-          ),
-          React.createElement(
-            'div',
-            null,
-            React.createElement(
-              'label',
-              { className: 'block text-sm font-medium text-gray-700' },
-              'Gender *'
-            ),
-            React.createElement(
-              'select',
-              {
-                name: 'gender',
-                required: true,
-                value: formData.gender,
-                onChange: handleInputChange,
-                className: 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-              },
-              React.createElement('option', { value: 'MALE' }, 'Male'),
-              React.createElement('option', { value: 'FEMALE' }, 'Female'),
-              React.createElement('option', { value: 'OTHER' }, 'Other')
-            )
-          ),
-          React.createElement(
-            'div',
-            null,
-            React.createElement(
-              'label',
-              { className: 'block text-sm font-medium text-gray-700' },
-              'Phone *'
-            ),
-            React.createElement('input', {
-              type: 'tel',
-              name: 'phone',
-              required: true,
-              value: formData.phone,
-              onChange: handleInputChange,
-              className: 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-            })
-          ),
-          React.createElement(
-            'div',
-            null,
-            React.createElement(
-              'label',
-              { className: 'block text-sm font-medium text-gray-700' },
-              'Nationality'
-            ),
-            React.createElement(
-              'select',
-              {
-                name: 'nationality',
-                value: formData.nationality,
-                onChange: (e) => {
-                  handleInputChange(e);
-                  if (e.target.value === 'IN') setFormData(prev => ({ ...prev, passportNumber: '' }));
-                  else setFormData(prev => ({ ...prev, aadharCardNumber: '' }));
-                },
-                className: 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-              },
-              React.createElement('option', { value: 'IN' }, 'Indian (Aadhar)'),
-              React.createElement('option', { value: 'FOREIGN' }, 'Foreign (Passport)')
-            )
-          ),
-          formData.nationality === 'IN' ? React.createElement(
-            'div',
-            null,
-            React.createElement(
-              'label',
-              { className: 'block text-sm font-medium text-gray-700' },
-              'Aadhar Card Number'
-            ),
-            React.createElement('input', {
-              type: 'text',
-              name: 'aadharCardNumber',
-              value: formData.aadharCardNumber,
-              onChange: handleInputChange,
-              placeholder: 'Enter 12-digit Aadhar number',
-              maxLength: 12,
-              pattern: '[0-9]{12}',
-              title: 'Aadhar card number must be exactly 12 digits',
-              className: 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-            }),
-            React.createElement(
-              'p',
-              { className: 'mt-1 text-xs text-gray-500' },
-              'Unique 12-digit identity number (optional but recommended for Indian patients)'
-            )
-          ) : React.createElement(
-            'div',
-            null,
-            React.createElement(
-              'label',
-              { className: 'block text-sm font-medium text-gray-700' },
-              'Passport Number'
-            ),
-            React.createElement('input', {
-              type: 'text',
-              name: 'passportNumber',
-              value: formData.passportNumber,
-              onChange: handleInputChange,
-              placeholder: 'Enter passport number (e.g. A1234567)',
-              maxLength: 20,
-              title: 'Passport number: 6–20 letters, numbers, hyphens',
-              className: 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-            }),
-            React.createElement(
-              'p',
-              { className: 'mt-1 text-xs text-gray-500' },
-              'Passport number for foreign patients (optional)'
-            )
-          ),
-          React.createElement(
-            'div',
-            { className: 'md:col-span-2' },
-            React.createElement(
-              'label',
-              { className: 'block text-sm font-medium text-gray-700' },
-              'Address *'
-            ),
-            React.createElement('textarea', {
-              name: 'address',
-              required: true,
-              rows: 2,
-              value: formData.address,
-              onChange: handleInputChange,
-              className: 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-            })
-          ),
-          React.createElement(
-            'div',
-            null,
-            React.createElement(
-              'label',
-              { className: 'block text-sm font-medium text-gray-700' },
-              'Blood Group'
-            ),
-            React.createElement('input', {
-              type: 'text',
-              name: 'bloodGroup',
-              value: formData.bloodGroup,
-              onChange: handleInputChange,
-              placeholder: 'e.g., O+, A-, B+',
-              className: 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-            })
-          ),
-          React.createElement(
-            'div',
-            { className: 'md:col-span-2' },
-            React.createElement(
-              'label',
-              { className: 'block text-sm font-medium text-gray-700 mb-2' },
-              'Allergies (From Catalog)'
-            ),
-            React.createElement(
-              'div',
-              { style: { marginBottom: '8px' } },
-              React.createElement('input', {
-                type: 'text',
-                placeholder: 'Search allergies...',
-                value: allergySearchTerm,
-                onChange: (e) => setAllergySearchTerm(e.target.value),
-                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-              })
-            ),
-            React.createElement(
-              'div',
-              {
-                style: {
-                  maxHeight: '200px',
-                  overflowY: 'auto',
-                  border: '1px solid #D1D5DB',
-                  borderRadius: '4px',
-                  padding: '12px',
-                  backgroundColor: '#FFFFFF'
-                }
-              },
-              filteredAllergies.length === 0 ? React.createElement(
-                'div',
-                { style: { padding: '8px', color: '#6B7280', textAlign: 'center' } },
-                allergySearchTerm ? 'No allergies found matching your search.' : 'Loading allergies...'
-              ) : filteredAllergies.map(allergy => React.createElement(
-                'div',
-                {
-                  key: allergy.id,
-                  style: {
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    marginBottom: '8px',
-                    padding: '6px',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    backgroundColor: selectedAllergies.includes(allergy.id) ? '#DBEAFE' : 'transparent'
-                  },
-                  onClick: (e) => {
-                    // Only toggle if click was not on the checkbox itself
-                    if (e.target.type !== 'checkbox') {
-                      e.stopPropagation();
-                      toggleAllergy(allergy.id, e);
-                    }
-                  }
-                },
-                React.createElement('input', {
-                  type: 'checkbox',
-                  id: `allergy-${allergy.id}`,
-                  checked: selectedAllergies.includes(allergy.id),
-                  onChange: (e) => {
-                    e.stopPropagation();
-                    toggleAllergy(allergy.id, e);
-                  },
-                  style: { cursor: 'pointer', pointerEvents: 'auto' }
-                }),
-                React.createElement(
-                  'label',
-                  {
-                    htmlFor: `allergy-${allergy.id}`,
-                    title: allergy.description || undefined,
-                    style: { cursor: 'pointer', flex: 1, fontSize: '14px' }
-                  },
-                  allergy.name,
-                  React.createElement(
-                    'span',
-                    { style: { color: '#6B7280', fontSize: '12px', marginLeft: '8px' } },
-                    `(${allergy.category})`
-                  )
-                )
-              ))
-            ),
-            selectedAllergies.length > 0 && React.createElement(
-              'div',
-              { style: { marginTop: '8px', padding: '8px', backgroundColor: '#F3F4F6', borderRadius: '4px' } },
-              React.createElement(
-                'small',
-                { style: { color: '#374151', fontWeight: '500' } },
-                `${selectedAllergies.length} allergy/allergies selected: `,
-                getSelectedAllergyNames().join(', ')
-              )
-            )
-          ),
-          React.createElement(
-            'div',
-            { className: 'md:col-span-2' },
-            React.createElement(
-              'label',
-              { className: 'block text-sm font-medium text-gray-700 mb-2' },
-              'Medical History (Past Diseases/Chronic Conditions)'
-            ),
-            React.createElement(
-              'div',
-              { style: { marginBottom: '8px' } },
-              React.createElement('input', {
-                type: 'text',
-                placeholder: 'Search diseases/conditions...',
-                value: conditionSearchTerm,
-                onChange: (e) => setConditionSearchTerm(e.target.value),
-                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-              })
-            ),
-            React.createElement(
-              'div',
-              {
-                style: {
-                  maxHeight: '200px',
-                  overflowY: 'auto',
-                  border: '1px solid #D1D5DB',
-                  borderRadius: '4px',
-                  padding: '12px',
-                  backgroundColor: '#FFFFFF'
-                }
-              },
-              filteredConditions.length === 0 ? React.createElement(
-                'div',
-                { style: { padding: '8px', color: '#6B7280', textAlign: 'center' } },
-                conditionSearchTerm ? 'No conditions found matching your search.' : 'Loading conditions...'
-              ) : filteredConditions.map(condition => React.createElement(
-                'div',
-                {
-                  key: condition.id,
-                  style: {
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    marginBottom: '8px',
-                    padding: '6px',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    backgroundColor: selectedConditions.includes(condition.id) ? '#DBEAFE' : 'transparent'
-                  },
-                  onClick: (e) => {
-                    // Only toggle if click was not on the checkbox itself
-                    if (e.target.type !== 'checkbox') {
-                      e.stopPropagation();
-                      toggleCondition(condition.id, e);
-                    }
-                  }
-                },
-                React.createElement('input', {
-                  type: 'checkbox',
-                  id: `condition-${condition.id}`,
-                  checked: selectedConditions.includes(condition.id),
-                  onChange: (e) => {
-                    e.stopPropagation();
-                    toggleCondition(condition.id, e);
-                  },
-                  style: { cursor: 'pointer', pointerEvents: 'auto' }
-                }),
-                React.createElement(
-                  'label',
-                  {
-                    htmlFor: `condition-${condition.id}`,
-                    title: condition.description || undefined,
-                    style: { cursor: 'pointer', flex: 1, fontSize: '14px' }
-                  },
-                  condition.name,
-                  React.createElement(
-                    'span',
-                    { style: { color: '#6B7280', fontSize: '12px', marginLeft: '8px' } },
-                    `(${condition.category})`
-                  )
-                )
-              ))
-            ),
-            selectedConditions.length > 0 && React.createElement(
-              'div',
-              { style: { marginTop: '8px', padding: '8px', backgroundColor: '#F3F4F6', borderRadius: '4px' } },
-              React.createElement(
-                'small',
-                { style: { color: '#374151', fontWeight: '500' } },
-                `${selectedConditions.length} condition(s) selected: `,
-                getSelectedConditionNames().join(', ')
-              )
-            )
-          ),
-          React.createElement(
-            'div',
-            null,
-            React.createElement(
-              'label',
-              { className: 'block text-sm font-medium text-gray-700' },
-              'Emergency Contact Name'
-            ),
-            React.createElement('input', {
-              type: 'text',
-              name: 'emergencyContactName',
-              value: formData.emergencyContactName,
-              onChange: handleInputChange,
-              placeholder: 'Emergency contact name',
-              className: 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-            })
-          ),
-          React.createElement(
-            'div',
-            null,
-            React.createElement(
-              'label',
-              { className: 'block text-sm font-medium text-gray-700' },
-              'Emergency Contact Phone'
-            ),
-            React.createElement('input', {
-              type: 'tel',
-              name: 'emergencyContactPhone',
-              value: formData.emergencyContactPhone,
-              onChange: handleInputChange,
-              placeholder: 'Emergency contact phone',
-              className: 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-            })
-          ),
-          React.createElement(
-            'div',
-            { className: 'md:col-span-2' },
-            React.createElement(
-              'button',
-              {
-                type: 'submit',
-                disabled: isSubmitting,
-                className: 'bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-400'
-              },
-              isSubmitting ? 'Creating...' : 'Create Patient'
-            )
-          )
-        )
+        {
+          style: {
+            marginBottom: '20px',
+            padding: '12px 16px',
+            backgroundColor: '#EFF6FF',
+            border: '1px solid #BFDBFE',
+            borderRadius: '8px',
+            fontSize: '14px',
+            color: '#1E40AF',
+          },
+        },
+        'New patient registration is done in ',
+        React.createElement('strong', null, 'OPD Flow'),
+        ' (Register & schedule). Here you can search, view, and edit existing patients.'
       ),
 
       // Search Bar
@@ -1194,7 +712,8 @@ const PatientManagement = () => {
             React.createElement('div', { style: { gridColumn: '1 / -1' } }, React.createElement('strong', null, 'Address:'), ' ', selectedPatient.address),
             React.createElement('div', null, React.createElement('strong', null, 'Blood Group:'), ' ', selectedPatient.bloodGroup || 'N/A'),
             React.createElement('div', null, React.createElement('strong', null, 'Patient Type:'), ' ', selectedPatient.patientType || 'OUTPATIENT'),
-            selectedPatient.emergencyContactName && React.createElement('div', null, React.createElement('strong', null, 'Emergency Contact:'), ' ', selectedPatient.emergencyContactName, ' - ', selectedPatient.emergencyContactPhone)
+            selectedPatient.emergencyContactName && React.createElement('div', null, React.createElement('strong', null, 'Emergency Contact:'), ' ', selectedPatient.emergencyContactName, ' - ', selectedPatient.emergencyContactPhone),
+            selectedPatient.referredBy && React.createElement('div', { style: { gridColumn: '1 / -1' } }, React.createElement('strong', null, 'Referred by:'), ' ', selectedPatient.referredBy)
           ),
           patientChronicConditions?.length > 0 && React.createElement(
             'div',
@@ -1656,6 +1175,24 @@ const PatientManagement = () => {
               )
             )
           ),
+            React.createElement(
+              'div',
+              { style: { gridColumn: '1 / -1' } },
+              React.createElement(
+                'label',
+                { className: 'block text-sm font-medium text-gray-700' },
+                'Referred by (optional)'
+              ),
+              React.createElement('input', {
+                type: 'text',
+                name: 'referredBy',
+                value: formData.referredBy,
+                onChange: handleInputChange,
+                placeholder: 'Name of person who referred this patient',
+                maxLength: 200,
+                className: 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
+              })
+            ),
             React.createElement('input', {
               type: 'text',
               name: 'emergencyContactName',

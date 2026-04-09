@@ -35,6 +35,19 @@ const requirePatientAccess = (req: AuthRequest, res: Response, next: any) => {
   }
 };
 
+/** Create patient: admin or receptionist (OPD registration). */
+const requirePatientCreateAccess = (req: AuthRequest, res: Response, next: any) => {
+  const userRole = req.user?.role;
+  if (userRole === UserRole.ADMIN || userRole === UserRole.RECEPTIONIST) {
+    next();
+  } else {
+    res.status(403).json({
+      success: false,
+      message: 'Access denied. Only administrators and receptionists can create patients.',
+    });
+  }
+};
+
 // Apply authentication middleware to all routes
 router.use(authenticateToken);
 
@@ -61,7 +74,7 @@ router.get('/:id', requirePatientAccess, getPatientById);
 // @route   POST /api/patients
 // @desc    Create new patient
 // @access  Private (Admin, Receptionist)
-router.post('/', requireAdmin, createPatient);
+router.post('/', requirePatientCreateAccess, createPatient);
 
 // @route   PUT /api/patients/:id
 // @desc    Update patient

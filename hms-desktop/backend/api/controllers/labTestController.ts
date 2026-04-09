@@ -12,6 +12,8 @@ const labTestCreateSchema = z.object({
   orderedBy: z.string().min(1, 'Ordered by (Doctor/Lab Tech ID) is required'),
   testCatalogId: z.string().min(1, 'Test catalog ID is required'),
   notes: z.string().optional(),
+  consultationId: z.string().optional(),
+  appointmentId: z.string().optional(),
 });
 
 const labTestUpdateSchema = z.object({
@@ -138,6 +140,52 @@ export const createLabTest = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    let consultationIdLink: string | undefined;
+    let appointmentIdLink: string | undefined;
+
+    if (validatedData.consultationId) {
+      const consultation = await prisma.consultation.findUnique({
+        where: { id: validatedData.consultationId },
+      });
+      if (!consultation) {
+        return res.status(404).json({ success: false, message: 'Consultation not found' });
+      }
+      if (consultation.patientId !== validatedData.patientId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Consultation does not match patient',
+        });
+      }
+      if (consultation.doctorId !== validatedData.orderedBy) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only the consulting doctor can link lab orders to this consultation',
+        });
+      }
+      consultationIdLink = consultation.id;
+      appointmentIdLink = consultation.appointmentId;
+      if (
+        validatedData.appointmentId &&
+        validatedData.appointmentId !== consultation.appointmentId
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: 'Appointment ID does not match consultation',
+        });
+      }
+    } else if (validatedData.appointmentId) {
+      const appt = await prisma.appointment.findUnique({
+        where: { id: validatedData.appointmentId },
+      });
+      if (!appt || appt.patientId !== validatedData.patientId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Appointment not found or does not match patient',
+        });
+      }
+      appointmentIdLink = validatedData.appointmentId;
+    }
+
     // Create lab test
     const labTest = await prisma.labTest.create({
       data: {
@@ -148,6 +196,9 @@ export const createLabTest = async (req: AuthRequest, res: Response) => {
         priceSnapshot: testCatalog.price,
         status: 'PENDING',
         results: null,
+        notes: validatedData.notes ?? null,
+        consultationId: consultationIdLink ?? null,
+        appointmentId: appointmentIdLink ?? null,
       },
       include: {
         patient: {

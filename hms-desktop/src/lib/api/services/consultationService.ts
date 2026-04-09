@@ -41,6 +41,25 @@ class ConsultationService {
       '/consultations',
       consultationData
     );
+    if (!response.data.success || !response.data.data?.consultation) {
+      const msg =
+        (response.data as any).message ||
+        (Array.isArray((response.data as any).errors)
+          ? (response.data as any).errors.map((e: { message?: string }) => e.message).join(', ')
+          : 'Failed to create consultation');
+      const err = new Error(msg) as Error & {
+        existingConsultationId?: string;
+        responseStatus?: number;
+        responseData?: unknown;
+      };
+      err.responseStatus = response.status;
+      err.responseData = response.data;
+      const existingId = (response.data as any)?.data?.existingConsultationId;
+      if (typeof existingId === 'string' && existingId.length > 0) {
+        err.existingConsultationId = existingId;
+      }
+      throw err;
+    }
     return response.data.data;
   }
 

@@ -211,6 +211,17 @@ export const getAppointments = async (req: AuthRequest, res: Response) => {
               role: true,
             },
           },
+          // OPD queue: at most one consultation / prescription per visit for UI state
+          consultations: {
+            take: 1,
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, heldUntil: true },
+          },
+          prescriptions: {
+            take: 1,
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, prescriptionNumber: true, status: true },
+          },
         },
       }),
       prisma.appointment.count({ where }),

@@ -191,6 +191,7 @@ model Patient {
   chronicConditions     String?     @map("chronic_conditions") // Keep for backward compatibility
   emergencyContactName  String?     @map("emergency_contact_name")
   emergencyContactPhone String?     @map("emergency_contact_phone")
+  referredBy            String?     @map("referred_by") // Free text: name of person who referred this patient
   patientType           PatientType @default(OUTPATIENT) @map("patient_type")
   patientNumber         String?     @unique @map("patient_number") // Deprecated: will be removed; use id for display
   oldId                 String?     @map("old_id") // Former CUID (for rollback); optional
@@ -233,6 +234,7 @@ model Appointment {
   doctor        User           @relation("DoctorAppointments", fields: [doctorId], references: [id])
   consultations Consultation[]
   prescriptions Prescription[]
+  labTests      LabTest[]
 
   @@map("appointments")
 }
@@ -252,6 +254,8 @@ model Consultation {
   consultationDate DateTime  @default(now()) @map("consultation_date")
   // Financial
   fee              Decimal   @default(0) @db.Decimal(10, 2) // Consultation fee in base currency
+  /// When set, OPD visit is on hold (e.g. waiting for lab); doctor resumes before prescription.
+  heldUntil        DateTime? @map("held_until")
   createdAt        DateTime  @default(now()) @map("created_at")
 
   // Relations
@@ -259,6 +263,7 @@ model Consultation {
   patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
   doctor        User           @relation("DoctorConsultations", fields: [doctorId], references: [id])
   prescriptions Prescription[]
+  labTests      LabTest[]
 
   @@map("consultations")
 }
@@ -349,16 +354,22 @@ model LabTest {
   reportFile       String?       @map("report_file") // PDF/image file path
   notes            String? // Additional notes from technician
   performedBy      String?       @map("performed_by") // Lab technician who performed the test
+  consultationId   String?         @map("consultation_id")
+  appointmentId    String?       @map("appointment_id")
   createdAt        DateTime      @default(now()) @map("created_at")
   completedAt      DateTime?     @map("completed_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")
 
   // Relations
-  patient         Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  orderedByUser   User        @relation("OrderedByUser", fields: [orderedBy], references: [id])
-  performedByUser User?       @relation("PerformedByUser", fields: [performedBy], references: [id])
-  testCatalog     TestCatalog @relation(fields: [testCatalogId], references: [id])
+  patient         Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  orderedByUser   User          @relation("OrderedByUser", fields: [orderedBy], references: [id])
+  performedByUser User?         @relation("PerformedByUser", fields: [performedBy], references: [id])
+  testCatalog     TestCatalog   @relation(fields: [testCatalogId], references: [id])
+  consultation    Consultation? @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+  appointment     Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
 
+  @@index([consultationId])
+  @@index([appointmentId])
   @@map("lab_tests")
 }
 

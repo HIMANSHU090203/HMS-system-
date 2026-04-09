@@ -12,6 +12,13 @@ import { getInfoContent } from '../../lib/infoContent';
 import userService from '../../lib/api/services/userService';
 import patientService from '../../lib/api/services/patientService';
 import appointmentService from '../../lib/api/services/appointmentService';
+import { UserRole } from '../../lib/api/types';
+import {
+  loadDoctorDashboardData,
+  loadReceptionistDashboardData,
+  loadLabTechDashboardData,
+  loadPharmacyDashboardData,
+} from '../../lib/utils/roleDashboardData';
 
 const RoleBasedDashboard = ({ user, onNavigate, onLogout, currentModule = 'dashboard' }) => {
   const [dashboardData, setDashboardData] = useState({});
@@ -36,14 +43,14 @@ const RoleBasedDashboard = ({ user, onNavigate, onLogout, currentModule = 'dashb
 
   useEffect(() => {
     loadDashboardData();
-  }, [userRole]);
+  }, [userRole, user?.id]);
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
       setError('');
 
-      if (userRole === 'ADMIN') {
+      if (userRole === UserRole.ADMIN) {
         const [userStatsResult, patientStatsResult, appointmentStatsResult, usersListResult, patientsListResult] = await Promise.allSettled([
           userService.getUserStats(),
           patientService.getPatientStats(),
@@ -80,9 +87,20 @@ const RoleBasedDashboard = ({ user, onNavigate, onLogout, currentModule = 'dashb
           recentUsers,
           recentPatients,
         });
+      } else if (userRole === UserRole.DOCTOR && user?.id) {
+        const data = await loadDoctorDashboardData(user.id);
+        setDashboardData(data);
+      } else if (userRole === UserRole.RECEPTIONIST) {
+        const data = await loadReceptionistDashboardData();
+        setDashboardData(data);
+      } else if (userRole === UserRole.LAB_TECH) {
+        const data = await loadLabTechDashboardData();
+        setDashboardData(data);
+      } else if (userRole === UserRole.PHARMACY) {
+        const data = await loadPharmacyDashboardData();
+        setDashboardData(data);
       } else {
-        const mockData = await getMockDashboardData(userRole);
-        setDashboardData(mockData);
+        setDashboardData({});
       }
     } catch (err) {
       console.error('Dashboard data error:', err);
@@ -90,45 +108,6 @@ const RoleBasedDashboard = ({ user, onNavigate, onLogout, currentModule = 'dashb
     } finally {
       setLoading(false);
     }
-  };
-
-  const getMockDashboardData = async (role) => {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    return {
-      DOCTOR: {
-        todayAppointments: 0,
-        pendingConsultations: 0,
-        totalPatients: 0,
-        todaySchedule: [],
-        recentPatients: [],
-      },
-      RECEPTIONIST: {
-        todayAppointments: 0,
-        newPatients: 0,
-        pendingBills: 0,
-        patientQueue: [],
-        paymentStatus: {
-          collected: 0,
-          pending: 0,
-          overdue: 0,
-        },
-      },
-      LAB_TECH: {
-        pendingTests: 0,
-        completedToday: 0,
-        totalSamples: 0,
-        pendingTestsList: [],
-        equipmentStatus: [],
-      },
-      PHARMACY: {
-        pendingPrescriptions: 0,
-        lowStock: 0,
-        dispensedToday: 0,
-        pendingPrescriptionsList: [],
-        lowStockItems: [],
-      },
-    }[role] || {};
   };
 
   const handleQuickAction = (action, module) => {
@@ -160,10 +139,18 @@ const RoleBasedDashboard = ({ user, onNavigate, onLogout, currentModule = 'dashb
     marginBottom: '16px'
   });
 
+  const formatStatDisplay = (key, value) => {
+    if (value === undefined || value === null) return 0;
+    if ((key === 'monthlyRevenue' || key === 'totalRevenue') && typeof value === 'number') {
+      return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    }
+    return value;
+  };
+
   const renderStatsWidget = (widget) => {
     const stats = widget.data.map(statKey => ({
       key: statKey,
-      value: dashboardData[statKey] || 0,
+      value: formatStatDisplay(statKey, dashboardData[statKey]),
       label: statKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())
     }));
 

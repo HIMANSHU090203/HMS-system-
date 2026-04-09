@@ -306,6 +306,8 @@ export interface Patient {
   chronicConditions?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
+  /** Free text: name of person who referred this patient */
+  referredBy?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -324,6 +326,7 @@ export interface CreatePatientRequest {
   chronicConditions?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
+  referredBy?: string;
 }
 
 export interface UpdatePatientRequest extends Partial<CreatePatientRequest> {}
@@ -349,6 +352,9 @@ export interface Appointment {
   updatedAt: string;
   patient?: Patient;
   doctor?: User;
+  /** Present when list API includes relations (e.g. OPD queue) */
+  consultations?: Array<{ id: string; heldUntil?: string | null }>;
+  prescriptions?: Array<{ id: string; prescriptionNumber: string; status: string }>;
 }
 
 export interface CreateAppointmentRequest {
@@ -373,8 +379,12 @@ export interface Consultation {
   doctorId: string;
   diagnosis: string;
   notes?: string;
+  /** OPD consultation fee (from hospital default at create time unless overridden). */
+  fee?: number | string;
   consultationDate: string;
   createdAt: string;
+  /** When set, OPD visit is paused (e.g. awaiting lab) until cleared. */
+  heldUntil?: string | null;
   appointment?: Appointment;
   patient?: Patient;
   doctor?: User;
@@ -386,11 +396,15 @@ export interface CreateConsultationRequest {
   doctorId: string;
   diagnosis: string;
   notes?: string;
+  /** ISO datetime — consultation on hold; appointment stays in progress. */
+  heldUntil?: string;
 }
 
 export interface UpdateConsultationRequest {
   diagnosis?: string;
   notes?: string;
+  /** Set to null to clear hold when continuing to prescription. */
+  heldUntil?: string | null;
 }
 
 export interface ConsultationSearchParams {
@@ -477,6 +491,8 @@ export interface LabTest {
   createdAt: string;
   completedAt?: string;
   updatedAt: string;
+  consultationId?: string | null;
+  appointmentId?: string | null;
   patient?: Patient;
   orderedByUser?: User;
   testCatalog?: TestCatalog;
@@ -487,6 +503,8 @@ export interface CreateLabTestRequest {
   orderedBy: string;
   testCatalogId: string;
   notes?: string;
+  consultationId?: string;
+  appointmentId?: string;
 }
 
 export interface UpdateLabTestRequest {
@@ -634,10 +652,13 @@ export interface PrescriptionSearchParams {
 export interface PrescriptionStats {
   totalPrescriptions: number;
   pendingPrescriptions: number;
+  /** Matches pending (active, not yet dispensed) — returned for dashboard UI */
+  activePrescriptions?: number;
   dispensedPrescriptions: number;
   cancelledPrescriptions: number;
   totalRevenue: number;
   recentPrescriptions: number;
+  dispensedToday?: number;
 }
 
 // Billing Types

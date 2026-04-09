@@ -17,6 +17,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "prisma:seed": "ts-node prisma/seed.ts",
+    "backfill:prescription-totals": "ts-node api/scripts/backfill-prescription-totals.ts",
     "lint": "eslint api/**/*.ts",
     "lint:fix": "eslint api/**/*.ts --fix"
   },

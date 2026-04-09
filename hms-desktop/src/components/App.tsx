@@ -23,6 +23,7 @@ import MedicineManagement from './medicines/MedicineManagement';
 import BillingManagement from './billing/BillingManagement';
 import IPDManagement from './ipd/IPDManagement';
 import OTManagement from './ot/OTManagement';
+import PatientJourneyModule from './patientJourney/PatientJourneyModule';
 import { User, ModuleName } from '../types';
 
 type SetupState = null | 'checking' | 'hospitalSetup' | 'userOnboarding' | 'ready' | 'backendOffline';
@@ -308,6 +309,12 @@ const App: React.FC = () => {
           onNavigate: handleNavigation,
           onLogout: handleLogout,
           currentModule: currentModule
+        });
+      case 'opdFlow':
+        return React.createElement(PatientJourneyModule, {
+          user,
+          isAuthenticated,
+          onBack: () => handleNavigation('dashboard'),
         });
       case 'patients':
         return React.createElement(PatientManagement, { user, isAuthenticated });

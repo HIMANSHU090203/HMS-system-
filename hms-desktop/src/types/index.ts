@@ -61,6 +61,8 @@ export interface Patient {
   chronicConditions?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
+  /** Name of person who referred this patient (free text) */
+  referredBy?: string | null;
   patientType: PatientType;
   createdAt: string;
   updatedAt: string;
@@ -499,6 +501,7 @@ export interface FormField {
 
 export type ModuleName = 
   | 'dashboard'
+  | 'opdFlow'
   | 'patients'
   | 'appointments'
   | 'consultations'

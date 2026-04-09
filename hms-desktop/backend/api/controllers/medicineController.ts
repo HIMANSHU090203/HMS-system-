@@ -33,27 +33,38 @@ const medicineCreateSchema = z.object({
   lowStockThreshold: z.union([z.number().int().min(0), z.string()]).transform(val => typeof val === 'string' ? parseInt(val) || 10 : val).pipe(z.number().int().min(0, 'Low stock threshold must be non-negative')).optional(),
 });
 
-const medicineUpdateSchema = z.object({
-  name: z.string().min(1, 'Medicine name is required').max(200, 'Medicine name too long').optional(),
-  genericName: z.string().max(200, 'Generic name too long').optional(),
-  manufacturer: z.string().max(200, 'Manufacturer name too long').optional(),
-  category: z.string().max(100, 'Category too long').optional(),
-  therapeuticClass: z.string().max(200, 'Therapeutic class too long').optional(),
-  atcCode: z.string().max(50, 'ATC code too long').optional(),
-  code: z.string().max(100, 'Code too long').optional(),
-  description: z.string().max(1000, 'Description too long').optional(),
-  dosageForm: z.string().max(100, 'Dosage form too long').optional(),
-  strength: z.string().max(100, 'Strength too long').optional(),
-  unit: z.string().max(50, 'Unit too long').optional(),
-  expiryDate: z.string().optional().transform((val) => val ? new Date(val) : undefined),
-  supplier: z.string().max(200, 'Supplier name too long').optional(),
-  batchNumber: z.string().max(100, 'Batch number too long').optional(),
-  storageConditions: z.string().max(500, 'Storage conditions too long').optional(),
-  prescriptionRequired: z.boolean().optional(),
-  quantity: z.union([z.number().int().min(0), z.string()]).transform(val => typeof val === 'string' ? parseInt(val) || 0 : val).pipe(z.number().int().min(0, 'Quantity must be non-negative')).optional(),
-  price: z.union([z.number().positive(), z.string()]).transform(val => typeof val === 'string' ? parseFloat(val) || 0 : val).pipe(z.number().positive('Price must be positive')).optional(),
-  lowStockThreshold: z.union([z.number().int().min(0), z.string()]).transform(val => typeof val === 'string' ? parseInt(val) || 10 : val).pipe(z.number().int().min(0, 'Low stock threshold must be non-negative')).optional(),
-});
+/** JSON clients often send `null` for empty fields; Zod `.optional()` expects `undefined`, not `null`. */
+function stripNullBodyFields(data: unknown): unknown {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
+  return Object.fromEntries(
+    Object.entries(data as Record<string, unknown>).map(([k, v]) => [k, v === null ? undefined : v])
+  );
+}
+
+const medicineUpdateSchema = z.preprocess(
+  stripNullBodyFields,
+  z.object({
+    name: z.string().min(1, 'Medicine name is required').max(200, 'Medicine name too long').optional(),
+    genericName: z.string().max(200, 'Generic name too long').optional(),
+    manufacturer: z.string().max(200, 'Manufacturer name too long').optional(),
+    category: z.string().max(100, 'Category too long').optional(),
+    therapeuticClass: z.string().max(200, 'Therapeutic class too long').optional(),
+    atcCode: z.string().max(50, 'ATC code too long').optional(),
+    code: z.string().max(100, 'Code too long').optional(),
+    description: z.string().max(1000, 'Description too long').optional(),
+    dosageForm: z.string().max(100, 'Dosage form too long').optional(),
+    strength: z.string().max(100, 'Strength too long').optional(),
+    unit: z.string().max(50, 'Unit too long').optional(),
+    expiryDate: z.string().optional().transform((val) => val ? new Date(val) : undefined),
+    supplier: z.string().max(200, 'Supplier name too long').optional(),
+    batchNumber: z.string().max(100, 'Batch number too long').optional(),
+    storageConditions: z.string().max(500, 'Storage conditions too long').optional(),
+    prescriptionRequired: z.boolean().optional(),
+    quantity: z.union([z.number().int().min(0), z.string()]).transform(val => typeof val === 'string' ? parseInt(val) || 0 : val).pipe(z.number().int().min(0, 'Quantity must be non-negative')).optional(),
+    price: z.union([z.number().positive(), z.string()]).transform(val => typeof val === 'string' ? parseFloat(val) || 0 : val).pipe(z.number().positive('Price must be positive')).optional(),
+    lowStockThreshold: z.union([z.number().int().min(0), z.string()]).transform(val => typeof val === 'string' ? parseInt(val) || 10 : val).pipe(z.number().int().min(0, 'Low stock threshold must be non-negative')).optional(),
+  })
+);
 
 const medicineSearchSchema = z.object({
   search: z.string().optional(),
@@ -62,11 +73,14 @@ const medicineSearchSchema = z.object({
   limit: z.string().transform(val => parseInt(val) || 20).optional(),
 });
 
-const stockUpdateSchema = z.object({
-  quantity: z.number().int(),
-  operation: z.enum(['add', 'subtract', 'set']),
-  reason: z.string().optional(),
-});
+const stockUpdateSchema = z.preprocess(
+  stripNullBodyFields,
+  z.object({
+    quantity: z.coerce.number().int(),
+    operation: z.enum(['add', 'subtract', 'set']),
+    reason: z.string().optional(),
+  })
+);
 
 // Create new medicine
 export const createMedicine = async (req: AuthRequest, res: Response) => {

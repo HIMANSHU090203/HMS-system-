@@ -19,6 +19,8 @@ const BillingManagement = ({ user }) => {
   const [dateTo, setDateTo] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  /** Non-blocking note after Load Items (e.g. one API failed but others succeeded) */
+  const [loadNote, setLoadNote] = useState('');
   const [activePage, setActivePage] = useState('billing'); // 'billing' | 'pl'
   const isAdmin = user?.role === 'ADMIN';
 
@@ -89,7 +91,21 @@ const BillingManagement = ({ user }) => {
       return;
     }
     setError('');
+    setLoadNote('');
     setLoading(true);
+    // Use latest saved hospital fee (context may be stale right after Configuration save)
+    let defaultConsultFee = Number(config?.defaultConsultationFee ?? 0) || 0;
+    try {
+      const { config: freshCfg } = await configService.getHospitalConfig();
+      if (freshCfg?.defaultConsultationFee != null && freshCfg.defaultConsultationFee !== '') {
+        const n = Number(freshCfg.defaultConsultationFee);
+        if (Number.isFinite(n) && n >= 0) defaultConsultFee = n;
+      }
+    } catch (e) {
+      console.warn('[Billing] Using cached config for default consultation fee', e);
+    }
+    const fetchWarnings = [];
+
     try {
       const newSections = {
         consultation: { items: [], subtotal: 0 },
@@ -101,16 +117,18 @@ const BillingManagement = ({ user }) => {
       // Consultations
       try {
         const c = await consultationService.getConsultations({ patientId: selectedPatientId, page: 1, limit: 500 });
-        const consultations = c.consultations || [];
-        console.log(`📋 Loaded ${consultations.length} consultations`);
+        const consultations = c?.consultations || [];
         consultations.forEach((x) => {
           const consDate = x.consultationDate || x.createdAt || new Date().toISOString();
           if (!inDateRange(consDate)) return;
-          const fee = Number(x.fee || 0);
+          const storedFee = Number(x.fee ?? 0);
+          const fee = storedFee > 0 ? storedFee : defaultConsultFee;
+          const docLabel = x.doctor?.fullName ? ` — Dr. ${x.doctor.fullName}` : '';
+          const feeNote = storedFee > 0 ? '' : defaultConsultFee > 0 ? ' (hospital default fee)' : ' (fee not set)';
           newSections.consultation.items.push({
             id: `CONS-${x.id}`,
             date: consDate,
-            description: x.diagnosis ? `Consultation - ${x.diagnosis.substring(0, 60)}` : 'Consultation',
+            description: (x.diagnosis ? `Consultation — ${String(x.diagnosis).substring(0, 80)}` : 'Consultation') + docLabel + feeNote,
             quantity: 1,
             unitPrice: fee,
             amount: fee,
@@ -119,21 +137,28 @@ const BillingManagement = ({ user }) => {
         });
       } catch (e) {
         console.error('❌ Consultations fetch failed:', e);
+        const st = e?.response?.status;
+        const msg = e?.response?.data?.message || e?.message || 'Consultations';
+        fetchWarnings.push(st === 403 ? `${msg} (no permission to view consultations)` : `${msg} (consultations)`);
       }
 
-      // Lab tests
+      // Lab tests — API uses priceSnapshot / testNameSnapshot, not price / testName
       try {
         const lt = await labTestService.getLabTests({ patientId: selectedPatientId, page: 1, limit: 500 });
-        const labTests = lt.labTests || lt.tests || [];
-        console.log(`🧪 Loaded ${labTests.length} lab tests`);
+        const labTests = lt?.labTests || lt?.tests || [];
         labTests.forEach((t) => {
-          const testDate = t.orderedAt || t.createdAt || t.updatedAt || new Date().toISOString();
+          const testDate = t.createdAt || t.completedAt || t.updatedAt || new Date().toISOString();
           if (!inDateRange(testDate)) return;
-          const price = Number(t.price || 0);
+          const price = Number(
+            t.priceSnapshot ?? t.price ?? t.testCatalog?.price ?? 0
+          );
+          const testLabel =
+            t.testNameSnapshot || t.testName || t.testCatalog?.testName || 'Lab test';
+          const statusSuffix = t.status ? ` [${t.status}]` : '';
           newSections.labTests.items.push({
             id: `LAB-${t.id}`,
             date: testDate,
-            description: t.testName || 'Lab Test',
+            description: `${testLabel}${statusSuffix}`,
             quantity: 1,
             unitPrice: price,
             amount: price,
@@ -142,67 +167,94 @@ const BillingManagement = ({ user }) => {
         });
       } catch (e) {
         console.error('❌ Lab tests fetch failed:', e);
+        const msg = e?.response?.data?.message || e?.message || 'Lab tests';
+        fetchWarnings.push(`${msg} (lab tests)`);
       }
 
-      // Prescriptions (medicines)
+      // Prescriptions — API returns prescriptionItems (+ medicine), not items
       try {
-        const presRes = await prescriptionService.getPrescriptions({ 
-          patientId: selectedPatientId, 
-          page: 1, 
-          limit: 500 
+        const presRes = await prescriptionService.getPrescriptions({
+          patientId: selectedPatientId,
+          page: 1,
+          limit: 500
         });
-        const prescriptions = presRes.prescriptions || [];
+        const prescriptions = presRes?.prescriptions || [];
         prescriptions.forEach((pres) => {
           const presDate = pres.createdAt || pres.updatedAt || new Date().toISOString();
           if (!inDateRange(presDate)) return;
-          
-          if (pres.items && pres.items.length > 0) {
-            pres.items.forEach((item, idx) => {
+
+          const lineItems = pres.prescriptionItems || pres.items || [];
+          if (lineItems.length > 0) {
+            lineItems.forEach((item, idx) => {
               const medName = item.medicine?.name || item.medicineName || 'Medicine';
-              const medPrice = Number(item.medicine?.price || item.price || 0);
-              const qty = Number(item.quantity || 1);
+              const medPrice = Number(item.medicine?.price ?? item.unitPrice ?? item.price ?? 0);
+              const qty = Number(item.quantity ?? 1);
               const amount = medPrice * qty;
-              
+              const rxLabel = pres.prescriptionNumber ? ` [${pres.prescriptionNumber}]` : '';
               newSections.pharmacy.items.push({
                 id: `PRES-${pres.id}-${idx}`,
                 date: presDate,
-                description: `${medName} (${item.dosage || 'N/A'})`,
+                description: `${medName}${rxLabel} (${item.dosage || 'as directed'})`,
                 quantity: qty,
                 unitPrice: medPrice,
-                amount: amount,
-                data: { prescription: pres, item },
+                amount,
+                data: { prescription: pres, item }
               });
             });
+          } else {
+            const total = Number(pres.totalAmount ?? 0);
+            if (total > 0) {
+              newSections.pharmacy.items.push({
+                id: `PRES-TOTAL-${pres.id}`,
+                date: presDate,
+                description: `Prescription total${pres.prescriptionNumber ? ` — ${pres.prescriptionNumber}` : ''}`,
+                quantity: 1,
+                unitPrice: total,
+                amount: total,
+                data: { prescription: pres }
+              });
+            }
           }
         });
       } catch (e) {
         console.warn('Prescriptions fetch failed (continuing)', e);
+        const msg = e?.response?.data?.message || e?.message || 'Prescriptions';
+        fetchWarnings.push(`${msg} (prescriptions)`);
       }
 
       // Calculate subtotals
-      Object.keys(newSections).forEach(key => {
+      Object.keys(newSections).forEach((key) => {
         newSections[key].subtotal = newSections[key].items.reduce(
-          (sum, item) => sum + item.amount, 0
+          (sum, item) => sum + item.amount,
+          0
         );
       });
 
       // Preselect all items
       const allIds = new Set();
-      Object.values(newSections).forEach(section => {
-        section.items.forEach(item => allIds.add(item.id));
+      Object.values(newSections).forEach((section) => {
+        section.items.forEach((item) => allIds.add(item.id));
       });
 
       const totalItems = Object.values(newSections).reduce((sum, s) => sum + s.items.length, 0);
       if (totalItems === 0) {
-        setError('No billable items found for the selected patient and date range.');
+        const hint = fetchWarnings.length
+          ? ` Some data could not be loaded: ${fetchWarnings.join('; ')}`
+          : '';
+        setError(
+          'No billable items found for this patient in the selected date range (or all amounts are zero).' + hint
+        );
+        setLoadNote('');
       } else {
         setError('');
+        setLoadNote(fetchWarnings.length ? fetchWarnings.join('; ') : '');
       }
-      
+
       setSections(newSections);
       setSelectedIds(allIds);
     } catch (e) {
       console.error('❌ Error loading billable items:', e);
+      setLoadNote('');
       setError(`Failed to load billable items: ${e.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
@@ -614,6 +666,11 @@ const BillingManagement = ({ user }) => {
             </button>
           </div>
           {error && <div style={{ marginTop: '8px', padding: '6px 8px', backgroundColor: '#FEE2E2', border: '1px solid #FECACA', borderRadius: '2px', color: '#991B1B', fontSize: '13px' }}>{error}</div>}
+          {loadNote && !error && (
+            <div style={{ marginTop: '8px', padding: '6px 8px', backgroundColor: '#FEF9C3', border: '1px solid #FDE047', borderRadius: '2px', color: '#854D0E', fontSize: '13px' }}>
+              Some sources could not be loaded: {loadNote}
+            </div>
+          )}
 
           {/* Discount, Tax and Print Controls */}
           <div className="flex items-center justify-between mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">

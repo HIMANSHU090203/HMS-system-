@@ -55,6 +55,7 @@ const patientCreateSchema = z.object({
   chronicConditions: z.string().optional(),
   emergencyContactName: z.string().optional(),
   emergencyContactPhone: z.string().optional(),
+  referredBy: z.string().max(200, 'Referrer name too long').optional().or(z.literal('')),
 }).refine((data) => {
   // At least one of dateOfBirth or age must be provided
   const hasDateOfBirth = data.dateOfBirth !== undefined && data.dateOfBirth !== null;
@@ -122,8 +123,12 @@ const patientSearchSchema = z.object({
   search: z.string().optional(),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
   bloodGroup: z.string().optional(),
-  page: z.string().transform(val => parseInt(val) || 1).optional(),
-  limit: z.string().transform(val => parseInt(val) || 20).optional(),
+  page: z.string().transform((val) => parseInt(val, 10) || 1).optional(),
+  limit: z.string().transform((val) => {
+    const n = parseInt(val, 10);
+    if (!Number.isFinite(n) || n < 1) return 20;
+    return Math.min(n, 100);
+  }).optional(),
 });
 
 // Create new patient
@@ -155,6 +160,7 @@ export const createPatient = async (req: AuthRequest, res: Response) => {
       dateOfBirth,
       aadharCardNumber: patientData.aadharCardNumber?.trim() || undefined,
       passportNumber: patientData.passportNumber?.trim() || undefined,
+      referredBy: patientData.referredBy?.trim() || undefined,
     };
 
     // Check for duplicate phone number
@@ -262,13 +268,23 @@ export const getPatients = async (req: AuthRequest, res: Response) => {
     const where: any = {};
 
     if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { phone: { contains: search } },
-        { aadharCardNumber: { contains: search } },
-        { passportNumber: { contains: search, mode: 'insensitive' } },
-        { address: { contains: search, mode: 'insensitive' } },
+      const term = search.trim();
+      const digitsOnly = term.replace(/\D/g, '');
+      const or: any[] = [
+        { name: { contains: term, mode: 'insensitive' } },
+        { id: { contains: term, mode: 'insensitive' } },
+        { patientNumber: { contains: term, mode: 'insensitive' } },
+        { phone: { contains: term } },
+        { aadharCardNumber: { contains: term } },
+        { passportNumber: { contains: term, mode: 'insensitive' } },
+        { address: { contains: term, mode: 'insensitive' } },
+        { referredBy: { contains: term, mode: 'insensitive' } },
       ];
+      // Match stored phones when user pasted "+91 …" or spaces but DB has plain digits
+      if (digitsOnly.length >= 3 && digitsOnly !== term) {
+        or.push({ phone: { contains: digitsOnly } });
+      }
+      where.OR = or;
     }
 
     if (gender) {
@@ -289,6 +305,7 @@ export const getPatients = async (req: AuthRequest, res: Response) => {
         select: {
           id: true,
           name: true,
+          patientNumber: true,
           dateOfBirth: true,
           gender: true,
           phone: true,
@@ -300,6 +317,7 @@ export const getPatients = async (req: AuthRequest, res: Response) => {
           chronicConditions: true,
           emergencyContactName: true,
           emergencyContactPhone: true,
+          referredBy: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -456,6 +474,9 @@ export const updatePatient = async (req: AuthRequest, res: Response) => {
     // Normalize empty ID strings to undefined for update
     if (updateData.aadharCardNumber !== undefined) updateData.aadharCardNumber = updateData.aadharCardNumber?.trim() || undefined;
     if (updateData.passportNumber !== undefined) updateData.passportNumber = updateData.passportNumber?.trim() || undefined;
+    if (updateData.referredBy !== undefined) {
+      updateData.referredBy = updateData.referredBy?.trim() ? updateData.referredBy.trim() : null;
+    }
 
     // Note: patient id (name_last4) is set only on create; we do not change id on update.
 
@@ -658,6 +679,7 @@ export const searchPatientByPhone = async (req: AuthRequest, res: Response) => {
         phone: true,
         address: true,
         bloodGroup: true,
+        referredBy: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'desc' },

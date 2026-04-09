@@ -379,11 +379,22 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
     e.preventDefault();
     if (!selectedMedicine) return;
 
+    const qty = parseInt(String(stockUpdateForm.quantity).trim(), 10);
+    if (!Number.isFinite(qty) || qty < 0 || !Number.isInteger(qty)) {
+      setError('Please enter a valid whole number (0 or greater).');
+      return;
+    }
+    if (stockUpdateForm.operation !== 'set' && qty < 1) {
+      setError('For Add or Subtract, enter a quantity of at least 1.');
+      return;
+    }
+
     setLoading(true);
+    setError('');
     try {
       const response = await medicineService.updateStock(selectedMedicine.id, {
         operation: stockUpdateForm.operation,
-        quantity: parseInt(stockUpdateForm.quantity),
+        quantity: qty,
         reason: stockUpdateForm.reason || undefined
       });
 
@@ -396,10 +407,17 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
         await loadMedicines();
         setError('');
       } else {
-        setError(response.message || 'Failed to update stock');
+        const zodDetail =
+          Array.isArray(response.errors) && response.errors.length > 0
+            ? response.errors.map((issue: { message?: string; path?: (string | number)[] }) =>
+                issue.path?.length ? `${issue.path.join('.')}: ${issue.message || ''}` : issue.message
+              ).join('; ')
+            : '';
+        setError(zodDetail ? `${response.message || 'Validation error'} — ${zodDetail}` : response.message || 'Failed to update stock');
       }
-    } catch (err) {
-      setError('Failed to update stock. Please try again.');
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message;
+      setError(msg ? String(msg) : 'Failed to update stock. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -445,21 +463,42 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
     e.preventDefault();
     if (!editingMedicine) return;
 
+    const priceNum = parseFloat(String(editFormData.price ?? '').replace(/,/g, ''));
+    const qtyNum = parseInt(String(editFormData.quantity ?? '').trim(), 10);
+    const thresholdNum = parseInt(String(editFormData.lowStockThreshold ?? '').trim(), 10);
+
+    if (!editFormData.name || !String(editFormData.name).trim()) {
+      setError('Medicine name is required.');
+      return;
+    }
+    if (!Number.isFinite(priceNum) || priceNum <= 0) {
+      setError('Price must be a number greater than zero.');
+      return;
+    }
+    if (!Number.isFinite(qtyNum) || qtyNum < 0 || !Number.isInteger(qtyNum)) {
+      setError('Stock quantity must be a whole number (0 or greater).');
+      return;
+    }
+    if (!Number.isFinite(thresholdNum) || thresholdNum < 0 || !Number.isInteger(thresholdNum)) {
+      setError('Low stock threshold must be a whole number (0 or greater).');
+      return;
+    }
+
     setLoading(true);
     setError('');
     try {
       const updateData = {
-        name: editFormData.name,
-        genericName: editFormData.genericName || null,
-        manufacturer: editFormData.manufacturer || null,
-        category: editFormData.category || 'General',
-        therapeuticClass: editFormData.therapeuticClass || null,
-        atcCode: editFormData.atcCode || null,
-        price: parseFloat(editFormData.price) || 0,
-        quantity: parseInt(editFormData.quantity) || 0,
-        lowStockThreshold: parseInt(editFormData.lowStockThreshold) || 10,
-        expiryDate: editFormData.expiryDate || null,
-        code: editFormData.code || null
+        name: String(editFormData.name).trim(),
+        genericName: editFormData.genericName?.trim() || undefined,
+        manufacturer: editFormData.manufacturer?.trim() || undefined,
+        category: editFormData.category?.trim() || 'General',
+        therapeuticClass: editFormData.therapeuticClass?.trim() || undefined,
+        atcCode: editFormData.atcCode?.trim() || undefined,
+        price: priceNum,
+        quantity: qtyNum,
+        lowStockThreshold: thresholdNum,
+        expiryDate: editFormData.expiryDate?.trim() || undefined,
+        code: editFormData.code?.trim() || undefined
       };
 
       const response = await medicineService.updateMedicine(editingMedicine.id, updateData);
@@ -471,10 +510,17 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
         await loadMedicines();
         setError('');
       } else {
-        setError(response.message || 'Failed to update medicine');
+        const zodDetail =
+          Array.isArray(response.errors) && response.errors.length > 0
+            ? response.errors.map((issue: { message?: string; path?: (string | number)[] }) =>
+                issue.path?.length ? `${issue.path.join('.')}: ${issue.message || ''}` : issue.message
+              ).join('; ')
+            : '';
+        setError(zodDetail ? `${response.message || 'Validation error'} — ${zodDetail}` : response.message || 'Failed to update medicine');
       }
-    } catch (err) {
-      setError('Failed to update medicine. Please try again.');
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message;
+      setError(msg ? String(msg) : 'Failed to update medicine. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -1196,7 +1242,7 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
             React.createElement(
               'p',
               { className: 'text-sm text-gray-500 mb-4' },
-              `Current Stock: ${selectedMedicine.quantity} | Threshold: ${selectedMedicine.lowStockThreshold}`
+              `Current stock: ${selectedMedicine.stockQuantity ?? selectedMedicine.quantity ?? 0} | Low-stock threshold: ${selectedMedicine.lowStockThreshold ?? 10}`
             ),
             React.createElement(
               'form',

@@ -13,11 +13,15 @@ const consultationCreateSchema = z.object({
   doctorId: z.string().min(1, 'Doctor ID is required'),
   diagnosis: z.string().min(1, 'Diagnosis is required').max(1000, 'Diagnosis too long'),
   notes: z.string().max(2000, 'Notes too long').optional(),
+  /** ISO 8601 datetime — when set, visit stays on hold (e.g. awaiting lab); appointment stays IN_PROGRESS. */
+  heldUntil: z.string().optional(),
 });
 
 const consultationUpdateSchema = z.object({
   diagnosis: z.string().min(1, 'Diagnosis is required').max(1000, 'Diagnosis too long').optional(),
   notes: z.string().max(2000, 'Notes too long').optional(),
+  /** Pass null to clear hold and allow completing the visit (appointment → COMPLETED). */
+  heldUntil: z.union([z.string(), z.null()]).optional(),
 });
 
 const consultationSearchSchema = z.object({
@@ -65,11 +69,14 @@ export const createConsultation = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Verify doctor has DOCTOR role
-    if (appointment.doctor.role !== UserRole.DOCTOR) {
+    // Appointment must be with a clinician user (DOCTOR or ADMIN who also sees patients)
+    if (
+      appointment.doctor.role !== UserRole.DOCTOR &&
+      appointment.doctor.role !== UserRole.ADMIN
+    ) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid doctor role',
+        message: 'Invalid doctor role for this appointment',
       });
     }
 
@@ -92,10 +99,23 @@ export const createConsultation = async (req: AuthRequest, res: Response) => {
       ? Number(hospitalConfig.defaultConsultationFee) 
       : 0;
 
+    const { heldUntil: heldUntilRaw, ...consultationRest } = validatedData;
+    let heldUntil: Date | null = null;
+    if (heldUntilRaw) {
+      heldUntil = new Date(heldUntilRaw);
+      if (Number.isNaN(heldUntil.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid heldUntil datetime',
+        });
+      }
+    }
+
     // Create consultation
     const consultation = await prisma.consultation.create({
       data: {
-        ...validatedData,
+        ...consultationRest,
+        heldUntil,
         fee: defaultFee,
         consultationDate: new Date(),
       },
@@ -130,10 +150,10 @@ export const createConsultation = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Update appointment status to IN_PROGRESS or COMPLETED
+    // Held consultations keep the slot active until the doctor finishes (prescription path).
     await prisma.appointment.update({
       where: { id: validatedData.appointmentId },
-      data: { status: 'COMPLETED' },
+      data: { status: heldUntil ? 'IN_PROGRESS' : 'COMPLETED' },
     });
 
     // Log the action
@@ -354,10 +374,44 @@ export const updateConsultation = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    const updatePayload: {
+      diagnosis?: string;
+      notes?: string | null;
+      heldUntil?: Date | null;
+    } = {};
+
+    if (validatedData.diagnosis !== undefined) {
+      updatePayload.diagnosis = validatedData.diagnosis;
+    }
+    if (validatedData.notes !== undefined) {
+      updatePayload.notes = validatedData.notes;
+    }
+    if (validatedData.heldUntil !== undefined) {
+      if (validatedData.heldUntil === null) {
+        updatePayload.heldUntil = null;
+      } else {
+        const d = new Date(validatedData.heldUntil);
+        if (Number.isNaN(d.getTime())) {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid heldUntil datetime',
+          });
+        }
+        updatePayload.heldUntil = d;
+      }
+    }
+
+    if (Object.keys(updatePayload).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No fields to update',
+      });
+    }
+
     // Update consultation
     const updatedConsultation = await prisma.consultation.update({
       where: { id },
-      data: validatedData,
+      data: updatePayload,
       include: {
         appointment: {
           select: {
@@ -396,6 +450,16 @@ export const updateConsultation = async (req: AuthRequest, res: Response) => {
       oldValue: existingConsultation,
       newValue: updatedConsultation,
     });
+
+    if (
+      Object.prototype.hasOwnProperty.call(validatedData, 'heldUntil') &&
+      validatedData.heldUntil === null
+    ) {
+      await prisma.appointment.update({
+        where: { id: existingConsultation.appointmentId },
+        data: { status: 'COMPLETED' },
+      });
+    }
 
     res.json({
       success: true,

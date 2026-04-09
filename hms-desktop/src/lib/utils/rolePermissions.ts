@@ -3,21 +3,21 @@ import { UserRole } from '../api/types';
 // Define module permissions for each role
 export const rolePermissions = {
   [UserRole.ADMIN]: {
-    modules: ['dashboard', 'patients', 'appointments', 'consultations', 'prescriptions', 'labTests', 'medicines', 'billing', 'users', 'configuration', 'ipd', 'ot'],
+    modules: ['dashboard', 'opdFlow', 'patients', 'appointments', 'consultations', 'prescriptions', 'labTests', 'medicines', 'billing', 'users', 'configuration', 'ipd', 'ot'],
     canManageUsers: true,
     canViewReports: true,
     canManageSystem: true,
     canAccessFinancials: true,
   },
   [UserRole.DOCTOR]: {
-    modules: ['dashboard', 'patients', 'appointments', 'consultations', 'prescriptions', 'labTests', 'ipd', 'ot'],
+    modules: ['dashboard', 'opdFlow', 'patients', 'appointments', 'consultations', 'prescriptions', 'labTests', 'ipd', 'ot'],
     canManageUsers: false,
     canViewReports: true,
     canManageSystem: false,
     canAccessFinancials: false,
   },
   [UserRole.RECEPTIONIST]: {
-    modules: ['dashboard', 'patients', 'appointments', 'billing', 'ipd', 'ot'],
+    modules: ['dashboard', 'opdFlow', 'patients', 'appointments', 'billing', 'ipd', 'ot'],
     canManageUsers: false,
     canViewReports: true,
     canManageSystem: false,
@@ -93,6 +93,7 @@ export const canAccessFinancials = (userRole) => {
 export const getRoleBasedModules = (userRole) => {
   const allModules = {
     dashboard: { name: 'Dashboard', icon: '🏠', color: 'blue' },
+    opdFlow: { name: 'OPD Flow', icon: '🔄', color: 'cyan' },
     patients: { name: 'Patients', icon: '👥', color: 'green' },
     appointments: { name: 'Appointments', icon: '📅', color: 'blue' },
     consultations: { name: 'Consultations', icon: '🩺', color: 'purple' },
@@ -186,23 +187,20 @@ export const getRoleDashboardWidgets = (userRole) => {
     ],
     [UserRole.RECEPTIONIST]: [
       { type: 'stats', title: 'Reception Overview', data: ['todayAppointments', 'newPatients', 'pendingBills'] },
-      { type: 'appointments', title: 'Today\'s Appointments', data: 'todayAppointments' },
+      { type: 'appointments', title: 'Today\'s Appointments', data: 'todayAppointmentsList' },
       { type: 'queue', title: 'Patient Queue', data: 'patientQueue' },
-      { type: 'payments', title: 'Payment Status', data: 'paymentStatus' },
-      { type: 'revenue', title: 'Revenue Chart', data: 'revenueChart' },
-      { type: 'reports', title: 'Financial Reports', data: 'financialReports' },
+      { type: 'stats', title: 'Billing (30 days)', data: ['paidBills', 'totalBills', 'monthlyRevenue'] },
     ],
     [UserRole.LAB_TECH]: [
       { type: 'stats', title: 'Lab Overview', data: ['pendingTests', 'completedToday', 'totalSamples'] },
-      { type: 'tests', title: 'Pending Tests', data: 'pendingTests' },
+      { type: 'tests', title: 'Pending Tests', data: 'pendingTestsList' },
       { type: 'results', title: 'Recent Results', data: 'recentResults' },
       { type: 'equipment', title: 'Equipment Status', data: 'equipmentStatus' },
     ],
     [UserRole.PHARMACY]: [
       { type: 'stats', title: 'Pharmacy Overview', data: ['pendingPrescriptions', 'lowStock', 'dispensedToday'] },
-      { type: 'prescriptions', title: 'Pending Prescriptions', data: 'pendingPrescriptions' },
+      { type: 'prescriptions', title: 'Pending Prescriptions', data: 'pendingPrescriptionsList' },
       { type: 'inventory', title: 'Low Stock Alert', data: 'lowStockItems' },
-      { type: 'sales', title: 'Today\'s Sales', data: 'todaySales' },
     ],
   };
 
