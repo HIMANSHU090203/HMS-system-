@@ -177,7 +177,7 @@ const createWindow = () => {
         "style-src 'self' 'unsafe-inline';",
         "img-src 'self' data: blob:;",
         "font-src 'self' data:;",
-        "connect-src 'self' http://localhost:* ws://localhost:*;"
+        "connect-src 'self' http://localhost:* ws://localhost:* https://hms-system-hj9i.onrender.com;"
       ].join(' ');
     }
     
