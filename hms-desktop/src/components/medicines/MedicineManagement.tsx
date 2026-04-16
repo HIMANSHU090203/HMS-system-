@@ -166,6 +166,7 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
   }, [displayCurrency, medicines.length]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [inventorySyncBanner, setInventorySyncBanner] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
@@ -1119,6 +1120,14 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
     activeTab === 'inventory' && React.createElement(
       'div',
       { className: 'space-y-6' },
+      inventorySyncBanner &&
+        React.createElement(
+          'div',
+          {
+            className: 'rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900 whitespace-pre-wrap',
+          },
+          inventorySyncBanner,
+        ),
       // Statistics Dashboard
       stats && React.createElement(
         'div',
@@ -1405,9 +1414,9 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
         'div',
         { className: 'bg-white rounded-lg shadow p-6' },
         React.createElement('h3', { className: 'text-lg font-medium text-gray-900 mb-4' }, '⚡ Quick Actions'),
-        React.createElement(
-          'div',
-          { className: 'grid grid-cols-1 md:grid-cols-3 gap-4' },
+      React.createElement(
+        'div',
+        { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4' },
           React.createElement(
             'button',
             {
@@ -1417,6 +1426,46 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
             },
             React.createElement('span', { className: 'mr-2' }, '🔄'),
             loading ? 'Refreshing...' : 'Refresh Inventory'
+          ),
+          React.createElement(
+            'button',
+            {
+              onClick: async () => {
+                setLoading(true);
+                setError('');
+                setInventorySyncBanner('');
+                try {
+                  const res = await medicineService.reconcileDispensedStock();
+                  const parts = [res.message || 'Done'];
+                  const d = res.data;
+                  if (d?.applied?.length) {
+                    parts.push(
+                      `Adjusted: ${d.applied
+                        .map((a: { medicineName: string; unitsAdjusted: number }) => `${a.medicineName} (−${a.unitsAdjusted})`)
+                        .join(', ')}`,
+                    );
+                  }
+                  if (d?.warnings?.length) parts.push(`Warnings: ${d.warnings.join(' | ')}`);
+                  if (d?.errors?.length) parts.push(`Errors: ${d.errors.join(' | ')}`);
+                  const text = parts.join('\n\n');
+                  if (d?.errors?.length) {
+                    setError(text);
+                  } else {
+                    setInventorySyncBanner(text);
+                  }
+                  await loadInventoryData();
+                  await loadMedicines();
+                } catch (err: any) {
+                  setError(err.response?.data?.message || err.message || 'Reconciliation failed');
+                } finally {
+                  setLoading(false);
+                }
+              },
+              disabled: loading,
+              className: 'px-4 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 flex items-center justify-center text-left'
+            },
+            React.createElement('span', { className: 'mr-2 shrink-0' }, '📋'),
+            'Sync stock from dispensed prescriptions'
           ),
           React.createElement(
             'button',

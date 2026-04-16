@@ -1,8 +1,9 @@
 import { Response } from 'express';
 import { logAudit } from '../utils/auditLogger';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, PrescriptionStatus } from '@prisma/client';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
+import { computeUnitsToDispenseForLine } from '../utils/prescriptionDispenseUnits';
 import { FileParserService } from '../services/fileParserService';
 import { getRequiredHospitalId } from '../utils/hospitalHelper';
 import { getHospitalCurrencies, convertCurrency } from '../services/currencyService';
@@ -617,6 +618,174 @@ export const getLowStockMedicines = async (req: AuthRequest, res: Response) => {
     res.status(500).json({
       success: false,
       message: 'Internal server error',
+    });
+  }
+};
+
+/**
+ * Align catalog stock with DISPENSED prescriptions: for each medicine on each dispensed Rx,
+ * expected units = sum of line-item calculations; compare to sum of MedicineTransaction for that Rx.
+ * Positive gap → decrement stock and insert a catch-up transaction (idempotent for already-synced Rx).
+ */
+export const reconcileStockFromDispensedPrescriptions = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const prescriptionId =
+      typeof req.body?.prescriptionId === 'string' ? req.body.prescriptionId.trim() : '';
+
+    const where: { status: PrescriptionStatus; id?: string } = {
+      status: PrescriptionStatus.DISPENSED,
+    };
+    if (prescriptionId) {
+      where.id = prescriptionId;
+    }
+
+    const prescriptions = await prisma.prescription.findMany({
+      where,
+      select: {
+        id: true,
+        prescriptionNumber: true,
+        dispensedBy: true,
+        prescriptionItems: {
+          select: {
+            medicineId: true,
+            quantity: true,
+            frequency: true,
+            duration: true,
+          },
+        },
+      },
+    });
+
+    if (prescriptionId && prescriptions.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Dispensed prescription not found',
+      });
+    }
+
+    const applied: Array<{
+      prescriptionId: string;
+      prescriptionNumber: string;
+      medicineId: string;
+      medicineName: string;
+      unitsAdjusted: number;
+    }> = [];
+    const warnings: string[] = [];
+    const errors: string[] = [];
+
+    for (const p of prescriptions) {
+      if (!p.prescriptionItems.length) continue;
+
+      const expectedByMedicine = new Map<string, number>();
+      for (const item of p.prescriptionItems) {
+        const u = computeUnitsToDispenseForLine(item);
+        expectedByMedicine.set(item.medicineId, (expectedByMedicine.get(item.medicineId) || 0) + u);
+      }
+
+      const txns = await prisma.medicineTransaction.findMany({
+        where: { prescriptionId: p.id },
+        select: { medicineId: true, quantityDispensed: true },
+      });
+      const loggedByMedicine = new Map<string, number>();
+      for (const t of txns) {
+        loggedByMedicine.set(
+          t.medicineId,
+          (loggedByMedicine.get(t.medicineId) || 0) + t.quantityDispensed,
+        );
+      }
+
+      const dispenser = p.dispensedBy || userId;
+
+      for (const [medicineId, expected] of expectedByMedicine) {
+        const logged = loggedByMedicine.get(medicineId) || 0;
+        const gap = expected - logged;
+        if (gap === 0) continue;
+
+        if (gap < 0) {
+          const med = await prisma.medicineCatalog.findUnique({
+            where: { id: medicineId },
+            select: { name: true },
+          });
+          warnings.push(
+            `${p.prescriptionNumber} — ${med?.name || medicineId}: transaction log shows ${logged} units but prescription lines imply ${expected}; stock not changed.`,
+          );
+          continue;
+        }
+
+        try {
+          await prisma.$transaction(async (tx) => {
+            const updated = await tx.medicineCatalog.updateMany({
+              where: { id: medicineId, stockQuantity: { gte: gap } },
+              data: { stockQuantity: { decrement: gap } },
+            });
+            if (updated.count !== 1) {
+              const med = await tx.medicineCatalog.findUnique({
+                where: { id: medicineId },
+                select: { name: true, stockQuantity: true },
+              });
+              throw new Error(
+                `Insufficient stock for ${p.prescriptionNumber} — ${med?.name || medicineId}: need ${gap} more units, have ${med?.stockQuantity ?? 0}.`,
+              );
+            }
+            await tx.medicineTransaction.create({
+              data: {
+                prescriptionId: p.id,
+                medicineId,
+                quantityDispensed: gap,
+                dispensedBy: dispenser,
+              },
+            });
+          });
+
+          const med = await prisma.medicineCatalog.findUnique({
+            where: { id: medicineId },
+            select: { name: true },
+          });
+          applied.push({
+            prescriptionId: p.id,
+            prescriptionNumber: p.prescriptionNumber,
+            medicineId,
+            medicineName: med?.name || medicineId,
+            unitsAdjusted: gap,
+          });
+        } catch (e: any) {
+          errors.push(e?.message || String(e));
+        }
+      }
+    }
+
+    await logAudit({
+      userId,
+      action: 'RECONCILE_DISPENSED_STOCK',
+      tableName: 'medicine_catalog',
+      recordId: prescriptionId || 'ALL',
+      newValue: {
+        adjustments: applied.length,
+        prescriptionFilter: prescriptionId || null,
+      },
+    });
+
+    let message = 'Inventory already matches dispensed prescriptions (no gaps).';
+    if (errors.length > 0 && applied.length === 0) {
+      message = 'No stock changes applied; fix errors below (e.g. insufficient stock) and retry.';
+    } else if (applied.length > 0) {
+      message = `Applied ${applied.length} stock adjustment(s) from dispensed prescriptions.`;
+      if (errors.length > 0) message += ' Some items failed — see errors.';
+    } else if (warnings.length > 0) {
+      message = 'No stock changes needed; see warnings for transaction vs prescription mismatches.';
+    }
+
+    res.json({
+      success: true,
+      message,
+      data: { applied, warnings, errors },
+    });
+  } catch (error) {
+    console.error('Reconcile dispensed stock error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reconcile stock from dispensed prescriptions',
     });
   }
 };

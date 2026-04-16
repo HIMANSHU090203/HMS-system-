@@ -12,6 +12,7 @@ import {
   getMedicineStats,
   getLowStockMedicines,
   getMedicineTransactions,
+  reconcileStockFromDispensedPrescriptions,
   importMedicineCatalog,
   createMedicineOrder,
   getMedicineOrders,
@@ -32,6 +33,11 @@ router.post('/', requireRole(UserRole.ADMIN, UserRole.PHARMACY), createMedicine)
 router.get('/stats', requireRole(UserRole.ADMIN, UserRole.PHARMACY), getMedicineStats);
 router.get('/low-stock', requireRole(UserRole.ADMIN, UserRole.PHARMACY), getLowStockMedicines);
 router.get('/transactions', requireRole(UserRole.ADMIN, UserRole.PHARMACY), getMedicineTransactions);
+router.post(
+  '/reconcile-dispensed-stock',
+  requireRole(UserRole.ADMIN, UserRole.PHARMACY),
+  reconcileStockFromDispensedPrescriptions,
+);
 router.get('/', requireRole(UserRole.ADMIN, UserRole.PHARMACY, UserRole.DOCTOR), getMedicines);
 router.get('/:id', requireRole(UserRole.ADMIN, UserRole.PHARMACY, UserRole.DOCTOR), getMedicineById);
 router.put('/:id', requireRole(UserRole.ADMIN, UserRole.PHARMACY), updateMedicine);

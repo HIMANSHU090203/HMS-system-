@@ -2,9 +2,6 @@ import React, { useState, useEffect } from 'react';
 import appointmentService from '../../lib/api/services/appointmentService';
 import patientService from '../../lib/api/services/patientService';
 import LoadingSpinner from '../common/LoadingSpinner';
-import InfoButton from '../common/InfoButton';
-import { getInfoContent } from '../../lib/infoContent';
-
 const AppointmentManagement = ({ user, isAuthenticated, onNavigate }) => {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);

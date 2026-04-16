@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { PrismaClient, PrescriptionStatus } from '@prisma/client';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
+import { computeUnitsToDispenseForLine } from '../utils/prescriptionDispenseUnits';
 
 const prisma = new PrismaClient();
 
@@ -536,10 +537,21 @@ export const dispensePrescription = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Check if prescription exists
     const existingPrescription = await prisma.prescription.findUnique({
       where: { id },
-      select: { id: true, status: true, prescriptionNumber: true },
+      select: {
+        id: true,
+        status: true,
+        prescriptionNumber: true,
+        prescriptionItems: {
+          select: {
+            medicineId: true,
+            quantity: true,
+            frequency: true,
+            duration: true,
+          },
+        },
+      },
     });
 
     if (!existingPrescription) {
@@ -549,7 +561,6 @@ export const dispensePrescription = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Check if already dispensed or cancelled
     if (existingPrescription.status === PrescriptionStatus.DISPENSED) {
       return res.status(400).json({
         success: false,
@@ -564,45 +575,112 @@ export const dispensePrescription = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Update prescription status to DISPENSED
-    const prescription = await prisma.prescription.update({
-      where: { id },
-      data: {
-        status: PrescriptionStatus.DISPENSED,
-        isDispensed: true,
-        dispensedAt: new Date(),
-        dispensedBy: userId,
-        notes: notes || existingPrescription.prescriptionNumber + ' dispensed',
-      },
-      include: {
-        patient: {
-          select: {
-            id: true,
-            name: true,
-            dateOfBirth: true,
-            gender: true,
+    const items = existingPrescription.prescriptionItems;
+    if (!items.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Prescription has no line items to dispense',
+      });
+    }
+
+    const lineDispense: { medicineId: string; units: number }[] = [];
+    const requiredByMedicine = new Map<string, number>();
+
+    for (const row of items) {
+      const units = computeUnitsToDispenseForLine(row);
+      lineDispense.push({ medicineId: row.medicineId, units });
+      requiredByMedicine.set(row.medicineId, (requiredByMedicine.get(row.medicineId) || 0) + units);
+    }
+
+    const medicineIds = [...requiredByMedicine.keys()];
+    const catalogRows = await prisma.medicineCatalog.findMany({
+      where: { id: { in: medicineIds } },
+      select: { id: true, name: true, stockQuantity: true },
+    });
+
+    if (catalogRows.length !== medicineIds.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'One or more medicines on this prescription are missing from the catalog',
+      });
+    }
+
+    const shortages: string[] = [];
+    for (const m of catalogRows) {
+      const need = requiredByMedicine.get(m.id) || 0;
+      if (m.stockQuantity < need) {
+        shortages.push(`${m.name}: need ${need} units, in stock ${m.stockQuantity}`);
+      }
+    }
+    if (shortages.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Insufficient stock to dispense this prescription',
+        details: shortages,
+      });
+    }
+
+    const prescription = await prisma.$transaction(async (tx) => {
+      for (const [medicineId, need] of requiredByMedicine) {
+        const updated = await tx.medicineCatalog.updateMany({
+          where: { id: medicineId, stockQuantity: { gte: need } },
+          data: { stockQuantity: { decrement: need } },
+        });
+        if (updated.count !== 1) {
+          throw new Error('CONCURRENT_STOCK_MISMATCH');
+        }
+      }
+
+      for (const line of lineDispense) {
+        await tx.medicineTransaction.create({
+          data: {
+            prescriptionId: id,
+            medicineId: line.medicineId,
+            quantityDispensed: line.units,
+            dispensedBy: userId,
           },
+        });
+      }
+
+      return tx.prescription.update({
+        where: { id },
+        data: {
+          status: PrescriptionStatus.DISPENSED,
+          isDispensed: true,
+          dispensedAt: new Date(),
+          dispensedBy: userId,
+          notes: notes || existingPrescription.prescriptionNumber + ' dispensed',
         },
-        doctor: {
-          select: {
-            id: true,
-            fullName: true,
-            role: true,
-          },
-        },
-        prescriptionItems: {
-          include: {
-            medicine: {
-              select: {
-                id: true,
-                name: true,
-                price: true,
-              },
+        include: {
+          patient: {
+            select: {
+              id: true,
+              name: true,
+              dateOfBirth: true,
+              gender: true,
             },
           },
-          orderBy: { rowOrder: 'asc' },
+          doctor: {
+            select: {
+              id: true,
+              fullName: true,
+              role: true,
+            },
+          },
+          prescriptionItems: {
+            include: {
+              medicine: {
+                select: {
+                  id: true,
+                  name: true,
+                  price: true,
+                },
+              },
+            },
+            orderBy: { rowOrder: 'asc' },
+          },
         },
-      },
+      });
     });
 
     // Create audit log
@@ -633,6 +711,12 @@ export const dispensePrescription = async (req: AuthRequest, res: Response) => {
     });
   } catch (error: any) {
     console.error('Dispense prescription error:', error);
+    if (error?.message === 'CONCURRENT_STOCK_MISMATCH') {
+      return res.status(409).json({
+        success: false,
+        message: 'Stock changed while dispensing. Refresh medicine stock and try again.',
+      });
+    }
     res.status(500).json({
       success: false,
       message: 'Failed to dispense prescription',

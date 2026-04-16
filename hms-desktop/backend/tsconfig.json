@@ -41,7 +41,9 @@
   "exclude": [
     "node_modules",
     "dist",
-    "tests"
+    "tests",
+    "api/__tests__",
+    "api/scripts"
   ],
   "ts-node": {
     "esm": false,

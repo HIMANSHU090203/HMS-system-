@@ -1,547 +1,633 @@
-// Information content database for HMS application
+// Information content for ZenHosp — aligned with actual modules, APIs, and UI flows
 export const infoContent = {
-  // Patient Management Module
   patients: {
-    title: "Patient Management",
-    description: "Manage patient records, medical history, and personal information",
+    title: 'Patient Management',
+    description:
+      'Register and search patients, view profiles, and maintain identifiers and clinical context used across OPD, IPD, prescriptions, labs, and billing.',
     sections: {
       overview: {
-        title: "Patient Overview",
-        content: "This module allows you to manage all patient information including personal details, medical history, allergies, and chronic conditions. You can add, edit, view, and search patient records."
+        title: 'Patient records',
+        content:
+          'Create patients with a stable display ID (derived from name and ID document), keep contact details unique, and maintain allergies and chronic conditions (including catalog links where used). Records are shared by reception, doctors, pharmacy, lab, and IPD/OT.',
       },
       personalInfo: {
-        title: "Personal Information",
-        content: "Enter the patient's basic personal details including name, age, gender, contact information, and address. This information is required for all patient records."
+        title: 'Registration details',
+        content:
+          'Capture legal name, date of birth, gender, phone (unique), address, and optional Aadhaar or passport for the human-readable patient ID. Emergency contacts help admissions and follow-up.',
       },
       medicalHistory: {
-        title: "Medical History",
-        content: "Record the patient's medical history including past illnesses, surgeries, hospitalizations, and current medications. This helps in providing better healthcare."
+        title: 'Clinical context',
+        content:
+          'Use consultation and prescription history for continuity of care. Free-text fields may coexist with structured allergy and chronic-condition data from catalogs.',
       },
       allergies: {
-        title: "Allergies",
-        content: "Document any known allergies including drug allergies, food allergies, and environmental allergies. This is critical for patient safety during treatment."
+        title: 'Allergies',
+        content:
+          'Record drug and non-drug allergies where applicable. This supports safer prescribing; severe allergies should always be confirmed at the point of care.',
       },
       chronicConditions: {
-        title: "Chronic Conditions",
-        content: "Record any ongoing chronic conditions such as diabetes, hypertension, heart disease, etc. This information helps in long-term care planning."
+        title: 'Chronic conditions',
+        content:
+          'Track long-term diagnoses (e.g. diabetes, hypertension) to inform treatment plans and reporting.',
       },
       emergencyContact: {
-        title: "Emergency Contact",
-        content: "Provide emergency contact information including name, relationship, and phone number. This is used in case of medical emergencies."
-      }
+        title: 'Emergency contact',
+        content:
+          'Name and phone for next of kin or guardian—used during admissions, procedures, and critical events.',
+      },
     },
     fields: {
       name: {
-        title: "Patient Name",
-        content: "Enter the full legal name of the patient as it appears on official documents."
+        title: 'Patient name',
+        content: 'Full name as used on official ID; it participates in the readable patient identifier.',
       },
       age: {
-        title: "Age",
-        content: "Enter the patient's age in years. This helps in determining appropriate treatments and dosages."
+        title: 'Age',
+        content: 'Derived from date of birth in this app; used for dosing and eligibility context.',
       },
       gender: {
-        title: "Gender",
-        content: "Select the patient's gender. This information is important for medical assessments and treatments."
+        title: 'Gender',
+        content: 'Recorded for clinical documentation and reporting.',
       },
       phone: {
-        title: "Phone Number",
-        content: "Enter a valid phone number where the patient can be reached. Include country code if applicable."
+        title: 'Phone',
+        content: 'Must be unique—primary channel for appointments and reminders.',
       },
       address: {
-        title: "Address",
-        content: "Enter the complete address including street, city, state, and postal code."
+        title: 'Address',
+        content: 'Residential or correspondence address for records and billing.',
       },
       bloodGroup: {
-        title: "Blood Group",
-        content: "Select the patient's blood group (A+, A-, B+, B-, AB+, AB-, O+, O-). This is important for blood transfusions and medical procedures."
-      }
-    }
+        title: 'Blood group',
+        content: 'Optional; important for transfusion and surgical planning.',
+      },
+    },
   },
 
-  // OPD Flow (Patient Journey) Module
   opdFlow: {
-    title: "OPD Flow",
-    description: "Unified patient journey: register or find patient, schedule appointment, then (for doctors) view today's queue, start consultation, and write prescription. One flow from reception to consultation.",
+    title: 'OPD Flow',
+    description:
+      'End-to-end outpatient journey: reception registers or finds the patient and books an appointment; the doctor works the day’s queue, records consultation, orders labs, and writes prescriptions.',
     sections: {
       receptionist: {
-        title: "Receptionist Steps",
-        content: "Step 1: Register new patient or search existing. Step 2: Schedule appointment with doctor, date and time. Step 3: Confirm and add patient to today's queue."
+        title: 'Reception',
+        content:
+          'Search or register the patient, pick doctor and slot, then confirm—patient appears in the doctor’s queue for that day.',
       },
       doctor: {
-        title: "Doctor Steps",
-        content: "View today's patient queue, start consultation (vitals, diagnosis, notes), then write prescription. Optionally order lab tests."
-      }
+        title: 'Doctor',
+        content:
+          'Open today’s queue, run the consultation (diagnosis and notes), optionally order lab tests, and complete the prescription writer. Flow ties patient, appointment, and clinical documents together.',
+      },
     },
-    fields: {}
+    fields: {},
   },
 
-  // Appointment Management Module
   appointments: {
-    title: "Appointment Management",
-    description: "Schedule and manage patient appointments with doctors and specialists",
+    title: 'Appointments',
+    description:
+      'View and manage scheduled visits: filter by doctor, date, and status; create or update appointments consistent with hospital working hours and slot length from Configuration.',
     sections: {
       overview: {
-        title: "Appointment Overview",
-        content: "This module allows you to schedule, reschedule, and manage patient appointments. You can view appointment calendars, check availability, and send reminders."
+        title: 'Scheduling',
+        content:
+          'Lists and forms use the live patient and user (doctor) directories. Status moves through scheduled, completed, cancelled, etc., and feeds the OPD queue.',
       },
       scheduling: {
-        title: "Scheduling",
-        content: "Schedule new appointments by selecting a patient, doctor, date, and time. The system will check for conflicts and availability."
+        title: 'New appointment',
+        content:
+          'Choose patient and doctor, date and time. Conflicts depend on existing bookings and your hospital’s slot and working-hour settings.',
       },
       calendar: {
-        title: "Appointment Calendar",
-        content: "View appointments in calendar format. You can see daily, weekly, or monthly views of all scheduled appointments."
+        title: 'Lists and filters',
+        content:
+          'Use search and filters to manage daily workload; completed appointments can link to consultations.',
       },
       status: {
-        title: "Appointment Status",
-        content: "Track appointment status including scheduled, confirmed, completed, cancelled, or no-show."
-      }
+        title: 'Status',
+        content:
+          'Tracks lifecycle of the visit (e.g. scheduled, completed, cancelled) for reporting and queue display.',
+      },
     },
     fields: {
       patient: {
-        title: "Patient Selection",
-        content: "Select the patient for whom the appointment is being scheduled. You can search by name or patient ID."
+        title: 'Patient',
+        content: 'The person attending; must exist in Patient Management.',
       },
       doctor: {
-        title: "Doctor Selection",
-        content: "Select the doctor or specialist for the appointment. The system will show available time slots."
+        title: 'Doctor',
+        content: 'Staff user with a doctor role; determines whose queue shows the visit.',
       },
       date: {
-        title: "Appointment Date",
-        content: "Select the date for the appointment. Only available dates will be shown."
+        title: 'Date',
+        content: 'Service date for the outpatient visit.',
       },
       time: {
-        title: "Appointment Time",
-        content: "Select the time slot for the appointment. Standard slots are 30 minutes each."
+        title: 'Time',
+        content: 'Slot time; granularity follows hospital appointment slot duration (Configuration).',
       },
       reason: {
-        title: "Appointment Reason",
-        content: "Briefly describe the reason for the appointment (e.g., follow-up, new consultation, routine check-up)."
-      }
-    }
+        title: 'Reason',
+        content: 'Short reason or chief complaint for reception and triage context.',
+      },
+    },
   },
 
-  // Consultation Management Module
   consultations: {
-    title: "Consultation Management",
-    description: "Record doctor–patient consultations linked to appointments, including diagnosis and notes",
+    title: 'Consultations',
+    description:
+      'Create and browse doctor–patient consultations, usually tied to an appointment, with diagnosis and notes stored for history and billing reference.',
     sections: {
       overview: {
-        title: "Consultation Overview",
-        content: "Create a consultation linked to an appointment. Select the patient and doctor, capture the diagnosis, and add clinical notes. Consultations appear in patient history and analytics."
+        title: 'Consultation list',
+        content:
+          'Filter and open encounters. New consultations pick patient, doctor, and appointment when applicable so OPD billing can pull the correct visit.',
       },
       linkage: {
-        title: "Link with Appointment",
-        content: "Consultations should be linked to a completed appointment whenever possible. This preserves the visit context and ensures accurate reporting."
-      }
+        title: 'Appointment link',
+        content:
+          'Linking to an appointment keeps the timeline coherent and helps reception/billing associate charges with the right visit.',
+      },
     },
     fields: {
       appointmentId: {
-        title: "Appointment",
-        content: "Choose the appointment this consultation belongs to. The list shows date/time with the patient name."
+        title: 'Appointment',
+        content: 'Optional but recommended: binds this consultation to a scheduled slot.',
       },
       patientId: {
-        title: "Patient",
-        content: "Select the patient being consulted. This determines where the consultation appears in patient history."
+        title: 'Patient',
+        content: 'Who was seen; drives history and downstream prescriptions and labs.',
       },
       doctorId: {
-        title: "Doctor",
-        content: "Select the consulting doctor responsible for this encounter."
+        title: 'Doctor',
+        content: 'Clinician responsible for the encounter.',
       },
       diagnosis: {
-        title: "Diagnosis",
-        content: "Enter the clinical diagnosis for this visit. Use concise medical terminology; this field is required."
+        title: 'Diagnosis',
+        content: 'Primary clinical diagnosis for this visit (required on create).',
       },
       notes: {
-        title: "Notes",
-        content: "Add any additional clinical notes, observations, or plan. Avoid PHI not needed for care."
-      }
-    }
+        title: 'Notes',
+        content: 'Free-text plan, exam findings, or instructions.',
+      },
+    },
   },
 
-  // Prescription Management Module
   prescriptions: {
-    title: "Prescription Management",
-    description: "Create, manage, and track patient prescriptions and medications",
+    title: 'Prescriptions',
+    description:
+      'Doctors create multi-line Rx with medicine catalog items, dose, frequency, and duration. Pharmacy (or Admin) dispenses: status moves to Dispensed, stock is reduced by computed units, and transactions are logged. Pending and safety checks support workflow.',
     sections: {
       overview: {
-        title: "Prescription Overview",
-        content: "This module allows you to create prescriptions, manage medication orders, track dispensing, and monitor prescription status."
+        title: 'Prescription list',
+        content:
+          'Search and filter by patient, doctor, and status. Open a record to print or review lines tied to the medicine catalog.',
       },
       creation: {
-        title: "Creating Prescriptions",
-        content: "Create new prescriptions by selecting a patient, adding medications, specifying dosages, and providing instructions."
+        title: 'Creating prescriptions',
+        content:
+          'Typically from OPD Flow after consultation: each line uses catalog medicine id, quantity per dose, frequency (e.g. 1-0-1), duration in days, and optional dosage/instructions.',
       },
       medications: {
-        title: "Medication Management",
-        content: "Add multiple medications to a single prescription. Specify quantity, frequency, duration, and special instructions for each medication."
+        title: 'Line items',
+        content:
+          'Multiple medicines per Rx. Pricing on the Rx may use per-line quantity × unit price; inventory deduction on dispense uses quantity × doses-per-day × duration.',
       },
       safety: {
-        title: "Safety Checks",
-        content: "The system automatically checks for drug interactions, patient allergies, and contraindications before creating prescriptions."
+        title: 'Safety checks',
+        content:
+          'When provided by the backend, interaction and allergy-style warnings appear for the selected patient and medicines—always verify clinically before dispensing.',
       },
       dispensing: {
-        title: "Prescription Dispensing",
-        content: "Track when prescriptions are dispensed, by whom, and update medication inventory accordingly."
-      }
+        title: 'Dispensing',
+        content:
+          'Pharmacy marks the prescription Dispensed when medication is handed out. The system reduces catalog stock accordingly and writes medicine transaction rows. Insufficient stock blocks dispense until inventory is adjusted or orders received.',
+      },
     },
     fields: {
       patient: {
-        title: "Patient Selection",
-        content: "Select the patient for whom the prescription is being created. The system will check for known allergies and medical history."
+        title: 'Patient',
+        content: 'Recipient of the medication; used for history and safety checks.',
       },
       medicine: {
-        title: "Medicine Selection",
-        content: "Search and select medicines from the catalog. The system will show available medicines with current stock levels."
+        title: 'Medicine',
+        content: 'Chosen from Medicine Management catalog (id, name, stock, price).',
       },
       quantity: {
-        title: "Quantity",
-        content: "Enter the number of units (tablets, capsules, bottles, etc.) to be dispensed."
+        title: 'Quantity (per dose)',
+        content: 'Units taken each time the frequency fires (e.g. tablets per dose).',
       },
       frequency: {
-        title: "Frequency",
-        content: "Specify how often the medicine should be taken (e.g., once daily, twice daily, three times daily)."
+        title: 'Frequency',
+        content:
+          'How often per day—e.g. hyphen pattern 1-0-1 (doses summed) or abbreviations BD, TDS, QID—used with duration to compute total dispensed units.',
       },
       duration: {
-        title: "Duration",
-        content: "Enter the number of days the medicine should be taken."
+        title: 'Duration (days)',
+        content: 'Length of therapy in days; combined with frequency for total units on dispense.',
       },
       dosage: {
-        title: "Dosage",
-        content: "Specify the strength or amount per dose (e.g., 500mg, 10ml)."
+        title: 'Dosage strength',
+        content: 'Optional text such as 500 mg or 10 ml for the label.',
       },
       instructions: {
-        title: "Instructions",
-        content: "Provide specific instructions for taking the medicine (e.g., take with food, avoid alcohol)."
+        title: 'Instructions',
+        content: 'Patient-facing directions (timing, hydration, etc.).',
       },
       withFood: {
-        title: "Food Timing",
-        content: "Specify when the medicine should be taken relative to meals (with meal, before meal, after meal, empty stomach)."
-      }
-    }
+        title: 'Meal timing',
+        content: 'Whether to take with food, before meals, etc., when captured.',
+      },
+    },
   },
 
-  // Lab Test Management Module
   labTests: {
-    title: "Lab Test Management",
-    description: "Order, track, and manage laboratory tests and results",
+    title: 'Laboratory',
+    description:
+      'Order tests from the hospital test catalog, track status from ordered through completed, enter or view results, and manage the catalog of available tests and prices.',
     sections: {
       overview: {
-        title: "Lab Test Overview",
-        content: "This module allows you to order lab tests, track test progress, record results, and manage test reports."
+        title: 'Lab workspace',
+        content:
+          'Work with patient-linked lab orders, technician workflow, and catalog maintenance depending on your role.',
       },
       ordering: {
-        title: "Test Ordering",
-        content: "Order lab tests by selecting from the test catalog, specifying patient details, and scheduling collection times."
+        title: 'Ordering',
+        content:
+          'Select patient, tests, ordering clinician, and priority; orders appear in worklists for processing.',
       },
       results: {
-        title: "Test Results",
-        content: "Record and manage test results, including normal ranges, abnormal values, and interpretations."
+        title: 'Results',
+        content:
+          'Record values and interpretations; completed results feed clinical review and may support billing.',
       },
       reports: {
-        title: "Test Reports",
-        content: "Generate and manage test reports for patients and doctors."
-      }
+        title: 'Reports & PDF',
+        content:
+          'Generate or view printable summaries where the UI exposes export—use for patient handoff or records.',
+      },
     },
     fields: {
       testType: {
-        title: "Test Type",
-        content: "Select the type of lab test from the catalog (blood test, urine test, imaging, etc.)."
+        title: 'Test',
+        content: 'Entry from test catalog (name, category, price).',
       },
       patient: {
-        title: "Patient",
-        content: "Select the patient for whom the test is being ordered."
+        title: 'Patient',
+        content: 'Subject of the order.',
       },
       doctor: {
-        title: "Ordering Doctor",
-        content: "Select the doctor who ordered the test."
+        title: 'Ordering doctor',
+        content: 'Responsible clinician on the requisition.',
       },
       priority: {
-        title: "Priority",
-        content: "Set the priority level (routine, urgent, stat) for the test."
+        title: 'Priority',
+        content: 'Routine vs urgent/stat for lab triage.',
       },
       instructions: {
-        title: "Special Instructions",
-        content: "Add any special instructions for sample collection or test preparation."
-      }
-    }
+        title: 'Instructions',
+        content: 'Fasting, timing, or collection notes.',
+      },
+    },
   },
 
-  // Medicine Management Module
   medicines: {
-    title: "Medicine Management",
-    description: "Manage medicine inventory, stock levels, and suppliers",
+    title: 'Medicine Management',
+    description:
+      'Maintain the pharmacy catalog: list/search medicines, add or edit items, manage on-hand quantity (manual adjustments, purchase orders when marked Delivered, and automatic deduction when prescriptions are dispensed). Inventory tab shows stats, low-stock alerts, transaction history, and optional sync from dispensed prescriptions. Import catalog from file when needed.',
     sections: {
       overview: {
-        title: "Medicine Overview",
-        content: "This module allows you to manage medicine inventory, track stock levels, manage suppliers, and handle medicine transactions."
+        title: 'Basic product details',
+        content:
+          'When adding a medicine, set brand name, generic (salt), manufacturer, and category so the item appears correctly in prescriptions and stock reports.',
       },
       inventory: {
-        title: "Inventory Management",
-        content: "Add new medicines to inventory, update stock levels, and track medicine movements."
+        title: 'Pricing & stock',
+        content:
+          'Set unit price (billing may apply hospital markup from Configuration), opening or current stock, and low-stock threshold. On-hand quantity decreases when pharmacy dispenses and increases on stock operations or when a purchase order is set to Delivered. Use Inventory → “Sync stock from dispensed prescriptions” if legacy data left totals out of step with dispensed Rx.',
       },
       suppliers: {
-        title: "Supplier Management",
-        content: "Manage medicine suppliers, track orders, and handle procurement."
+        title: 'Suppliers & orders',
+        content:
+          'Maintain suppliers and raise purchase orders; receiving updates inventory for line items.',
       },
       stock: {
-        title: "Stock Management",
-        content: "Monitor stock levels, set low stock alerts, and manage medicine expiry dates."
-      }
+        title: 'Stock adjustments',
+        content:
+          'Use Update Stock (add / subtract / set) with a reason for audits; low-stock badges compare quantity to threshold.',
+      },
     },
     fields: {
       name: {
-        title: "Medicine Name",
-        content: "Enter the brand name or trade name of the medicine."
+        title: 'Medicine name',
+        content: 'Brand or trade name shown in UI and on labels.',
       },
       genericName: {
-        title: "Generic Name",
-        content: "Enter the generic or chemical name of the medicine."
+        title: 'Generic name',
+        content: 'INN / salt name for clinical clarity.',
       },
       manufacturer: {
-        title: "Manufacturer",
-        content: "Enter the name of the pharmaceutical company that manufactures the medicine."
+        title: 'Manufacturer',
+        content: 'Marketing authorization holder or labeler.',
       },
       category: {
-        title: "Category",
-        content: "Select the therapeutic category of the medicine (antibiotic, painkiller, etc.)."
+        title: 'Category',
+        content: 'Therapeutic or form class for filtering and reporting.',
       },
       price: {
-        title: "Price",
-        content: "Enter the unit price of the medicine for billing purposes."
+        title: 'Price',
+        content: 'Base unit price before optional hospital markup.',
       },
       quantity: {
-        title: "Stock Quantity",
-        content: "Enter the current stock quantity available in the pharmacy."
+        title: 'Stock quantity',
+        content: 'Current units on hand in the catalog.',
       },
       lowStockThreshold: {
-        title: "Low Stock Alert",
-        content: "Set the minimum quantity below which low stock alerts will be triggered."
-      }
-    }
+        title: 'Low-stock threshold',
+        content: 'When on-hand quantity is at or below this value, the item is treated as low stock.',
+      },
+    },
   },
 
-  // Billing Management Module
   billing: {
-    title: "Billing Management",
-    description: "Handle patient billing, payments, and financial transactions",
+    title: 'Billing',
+    description:
+      'Build OPD invoices for a patient and date range: pull consultations, dispensed prescriptions, lab tests, and manual lines; apply tax/discount, generate PDF, and record payment. Admins can open Profit & Loss using expenses and revenue-style data.',
     sections: {
       overview: {
-        title: "Billing Overview",
-        content: "This module allows you to create bills, process payments, track outstanding amounts, and manage financial transactions."
+        title: 'OPD billing',
+        content:
+          'Pick patient and optional date range, load billable items by section, select lines, then save or export. Uses hospital tax settings and optional default consultation fee from Configuration.',
       },
       billCreation: {
-        title: "Bill Creation",
-        content: "Create bills for consultations, procedures, medicines, and other services provided to patients."
+        title: 'Bill lines',
+        content:
+          'Consultation, pharmacy, laboratory, and other charges combine into one invoice with modes such as cash, card, or UPI.',
       },
       payments: {
-        title: "Payment Processing",
-        content: "Process payments through various modes including cash, card, insurance, and online payments."
+        title: 'Payments',
+        content:
+          'Record how the patient paid and track payment status on the bill.',
       },
       reports: {
-        title: "Financial Reports",
-        content: "Generate financial reports including daily collections, outstanding amounts, and revenue analysis."
-      }
+        title: 'Profit & Loss',
+        content:
+          'Admin-only view summarizing financial performance with expenses and income-style figures where configured.',
+      },
     },
     fields: {
       patient: {
-        title: "Patient",
-        content: "Select the patient for whom the bill is being created."
+        title: 'Patient',
+        content: 'Who the invoice is for; drives which services appear when loading items.',
       },
       services: {
-        title: "Services",
-        content: "Add services, procedures, or items to the bill with their respective charges."
+        title: 'Line items',
+        content: 'Selectable consultations, Rx, labs, or manual charges with amounts.',
       },
       paymentMode: {
-        title: "Payment Mode",
-        content: "Select the payment method (cash, card, insurance, online transfer)."
+        title: 'Payment mode',
+        content: 'Cash, card, insurance, transfer, etc., per hospital setup.',
       },
       amount: {
-        title: "Amount",
-        content: "Enter the total amount to be charged for the services."
-      }
-    }
+        title: 'Amount',
+        content: 'Totals include subtotal, tax, discounts, and grand total.',
+      },
+    },
   },
 
-  // OT (Operation Theatre) Management Module
   ot: {
-    title: "Operation Theatre (OT)",
-    description: "Manage operation theatres, surgery scheduling, surgical team, pre-operative and post-operative care, and OT billing",
+    title: 'Operation Theatre (OT)',
+    description:
+      'Manage theatres, schedule surgeries, assign teams, complete pre- and post-operative checklists, OT consumables inventory, and OT-related billing—integrated with IPD when patients are admitted.',
     sections: {
       overview: {
-        title: "OT Overview",
-        content: "The OT module manages surgeries from scheduling to completion: OT room allocation, surgeon and team assignment, pre-op checklist, intra-operative recording, and post-op recovery. It integrates with IPD for admitted patients and with billing for surgery charges."
+        title: 'OT overview',
+        content:
+          'Navigate from the OT dashboard to rooms, scheduling, active cases, pre/post care, staff, inventory, and billing submodules. Access is role-gated (e.g. doctor, nurse, admin).',
       },
       scheduling: {
-        title: "Surgery Scheduling",
-        content: "Schedule operations by selecting patient, surgeon, procedure, OT room, and time. You can link the surgery to an IPD admission when the patient is admitted."
+        title: 'Surgery scheduling',
+        content:
+          'Book procedures with surgeon, room, time, and priority (elective / urgent / emergency); link to patients and admissions where applicable.',
       },
       preOp: {
-        title: "Pre-Operative Care",
-        content: "Complete the pre-operative checklist: consent signed, lab tests done, anesthesia clearance, blood available, fasting confirmed, and allergy review before surgery."
+        title: 'Pre-operative',
+        content:
+          'Checklists: consent, labs, anesthesia clearance, fasting, allergies—must be satisfied before proceeding.',
       },
       postOp: {
-        title: "Post-Operative Care",
-        content: "Record recovery notes, complications, discharge instructions, and pain level after surgery. This supports handover to the ward and discharge planning."
+        title: 'Post-operative',
+        content:
+          'Recovery documentation, complications, and handover notes for ward or discharge.',
       },
       billing: {
-        title: "OT Billing",
-        content: "Surgery charges (OT room, surgeon fee, anesthesia, implants) are typically included in IPD billing for admitted patients. Standalone day-care surgeries can be billed through the main Billing module."
-      }
+        title: 'OT billing',
+        content:
+          'Capture surgery-related charges; may complement IPD billing for inpatients.',
+      },
     },
     fields: {
       procedure: {
-        title: "Procedure",
-        content: "The surgical procedure to be performed. You can select from the procedure catalog or enter a free-text procedure name."
+        title: 'Procedure',
+        content: 'Catalog or free-text procedure defining the operation.',
       },
       surgeon: {
-        title: "Surgeon",
-        content: "The lead surgeon responsible for the operation. Select from users with appropriate role (e.g. Doctor)."
+        title: 'Surgeon',
+        content: 'Lead operating surgeon (staff user).',
       },
       otRoom: {
-        title: "OT Room",
-        content: "The operation theatre where the surgery will be performed. Rooms have status: Available, Occupied, Maintenance, or Cleaning."
+        title: 'OT room',
+        content: 'Physical theatre with availability and maintenance state.',
       },
       priority: {
-        title: "Priority",
-        content: "Elective (planned), Urgent, or Emergency. Affects scheduling and ordering."
-      }
-    }
+        title: 'Priority',
+        content: 'Elective vs urgent vs emergency for sequencing and resource use.',
+      },
+    },
   },
 
-  // IPD Management Module
   ipd: {
-    title: "Inpatient Department (IPD)",
-    description: "Manage inpatient admissions, bed allocation, and patient care",
+    title: 'Inpatient (IPD)',
+    description:
+      'Inpatient hub: dashboard, wards and beds, admissions and transfers, daily rounds and vitals, nursing shifts, discharge summaries, and inpatient billing—permissions vary by nurse, ward manager, doctor, reception, and admin.',
     sections: {
       overview: {
-        title: "IPD Overview",
-        content: "This module manages inpatient admissions, bed allocation, patient care, daily rounds, and discharge processes."
+        title: 'IPD dashboard',
+        content:
+          'Entry point to submodules you are allowed to use; each tile opens ward, bed, admission, clinical, nursing, discharge, or billing tools.',
       },
       admissions: {
-        title: "Patient Admissions",
-        content: "Admit patients to the hospital, assign beds, and create admission records."
+        title: 'Admissions',
+        content:
+          'Admit from patient records, assign ward and bed, capture admission type and diagnosis; discharge frees the bed.',
       },
       bedManagement: {
-        title: "Bed Management",
-        content: "Manage hospital beds, track occupancy, and handle bed assignments and transfers."
+        title: 'Beds',
+        content:
+          'Define bed types and status; allocate to admissions and track occupancy.',
       },
       care: {
-        title: "Patient Care",
-        content: "Record daily rounds, vital signs, nursing notes, and treatment progress."
+        title: 'Patient care',
+        content:
+          'Daily rounds and vital signs for admitted patients.',
       },
       discharge: {
-        title: "Discharge Process",
-        content: "Handle patient discharge, generate discharge summaries, and update bed status."
-      }
+        title: 'Discharge',
+        content:
+          'Prepare discharge summaries and complete the inpatient episode.',
+      },
     },
     fields: {
       ward: {
-        title: "Ward",
-        content: "Select the hospital ward where the patient will be admitted."
+        title: 'Ward',
+        content: 'Nursing unit or floor grouping beds.',
       },
       bed: {
-        title: "Bed Assignment",
-        content: "Assign a specific bed to the patient from available beds in the selected ward."
+        title: 'Bed',
+        content: 'Specific bed within a ward for the stay.',
       },
       admissionType: {
-        title: "Admission Type",
-        content: "Select the type of admission (emergency, planned, transfer)."
+        title: 'Admission type',
+        content: 'Emergency, elective, transfer, etc.',
       },
       diagnosis: {
-        title: "Admission Diagnosis",
-        content: "Enter the primary diagnosis for which the patient is being admitted."
-      }
-    }
+        title: 'Admission diagnosis',
+        content: 'Reason for hospitalization as recorded at admission.',
+      },
+    },
   },
 
-  // User Management Module
   users: {
-    title: "User Management",
-    description: "Manage system users, roles, and permissions",
+    title: 'User Management',
+    description:
+      'Admin-only directory of staff accounts: create and edit users with roles (Admin, Doctor, Receptionist, Lab, Pharmacy, Nurse, Ward Manager, Nursing Supervisor), activation flag, and professional fields for clinicians.',
     sections: {
       overview: {
-        title: "User Overview",
-        content: "This module allows you to manage system users, assign roles, set permissions, and control access to different parts of the system."
+        title: 'Accounts',
+        content:
+          'Users authenticate with username/password; role controls module access from the dashboard and navigation.',
       },
       roles: {
-        title: "Role Management",
-        content: "Manage user roles including Admin, Doctor, Nurse, Receptionist, Pharmacy, Lab Technician, etc."
+        title: 'Roles',
+        content:
+          'Each role maps to a fixed set of modules (e.g. pharmacy sees patients, prescriptions, medicines; lab sees lab tests).',
       },
       permissions: {
-        title: "Permissions",
-        content: "Set specific permissions for each role to control access to different modules and functions."
+        title: 'Access',
+        content:
+          'Enforced in the app shell and API; change role to move someone between workflows.',
       },
       security: {
-        title: "Security",
-        content: "Manage user passwords, account status, and security settings."
-      }
+        title: 'Security',
+        content:
+          'Deactivate accounts to revoke login; users can change password from profile where enabled.',
+      },
     },
     fields: {
       username: {
-        title: "Username",
-        content: "Enter a unique username for the user. This will be used for login."
+        title: 'Username',
+        content: 'Unique login identifier.',
       },
       fullName: {
-        title: "Full Name",
-        content: "Enter the complete name of the user."
+        title: 'Full name',
+        content: 'Displayed name across the app and on clinical documents.',
       },
       role: {
-        title: "Role",
-        content: "Select the user role which determines their access permissions in the system."
+        title: 'Role',
+        content: 'Determines which modules and IPD/OT submodules appear.',
       },
       isActive: {
-        title: "Account Status",
-        content: "Enable or disable the user account. Inactive users cannot log in."
-      }
-    }
+        title: 'Active',
+        content: 'Inactive users cannot sign in.',
+      },
+    },
   },
 
-  // Dashboard Module
-  dashboard: {
-    title: "Dashboard",
-    description: "Overview of hospital operations and key metrics",
+  configuration: {
+    title: 'Configuration',
+    description:
+      'Hospital profile and operations: identity, logo, address, timezone, currencies, appointment slots, default consultation fee, module toggles, and bank/invoice footer fields used on PDFs. Changes apply app-wide after save.',
     sections: {
       overview: {
-        title: "Dashboard Overview",
-        content: "The dashboard provides a comprehensive overview of hospital operations, key metrics, and quick access to important functions."
+        title: 'Hospital profile',
+        content:
+          'Legal and marketing name, code, contacts, license/tax ids, logo upload, languages, timezone, base and optional display currency, and tax or markup knobs that affect appointments, billing, and pharmacy pricing display.',
+      },
+      appointments: {
+        title: 'Scheduling defaults',
+        content:
+          'Slot duration, default consult length, working days/hours—used when booking appointments and validating slots.',
+      },
+      modules: {
+        title: 'Feature toggles',
+        content:
+          'Enable or align lab, IPD, billing, appointments, consultations, prescriptions, and pharmacy flags stored with hospital settings.',
+      },
+      banking: {
+        title: 'Bank & invoice footer',
+        content:
+          'GSTIN, PAN, bank account, IFSC, UPI, payment terms, and footer text that can appear on generated invoices.',
+      },
+    },
+    fields: {},
+  },
+
+  dashboard: {
+    title: 'Dashboard',
+    description:
+      'Role-aware home: admins see user/patient/appointment counts and short lists; doctors see queue and workload summaries; reception, lab, and pharmacy see tiles relevant to their duties. Use Available Modules to jump into authorized areas.',
+    sections: {
+      overview: {
+        title: 'Home',
+        content:
+          'Widgets load from live APIs where implemented; clock and quick actions help common tasks.',
       },
       metrics: {
-        title: "Key Metrics",
-        content: "View important metrics including patient count, appointments, prescriptions, revenue, and other operational indicators."
+        title: 'Metrics',
+        content:
+          'Counts and summaries depend on role—not every metric is shown to every user.',
       },
       quickActions: {
-        title: "Quick Actions",
-        content: "Access frequently used functions like adding new patients, scheduling appointments, or creating prescriptions."
+        title: 'Quick actions',
+        content:
+          'Shortcuts into patients, appointments, or other allowed modules in one click.',
       },
       notifications: {
-        title: "Notifications",
-        content: "View important notifications, alerts, and reminders for various hospital operations."
-      }
-    }
-  }
+        title: 'Alerts',
+        content:
+          'Reserved for operational alerts when populated; check module-specific screens for low stock, pending labs, etc.',
+      },
+    },
+  },
+};
+
+const MODULE_ALIASES: Record<string, keyof typeof infoContent> = {
+  catalog: 'configuration',
 };
 
 // Helper function to get information content
-export const getInfoContent = (module, section = null, field = null) => {
-  if (!infoContent[module]) {
+export const getInfoContent = (module: string, section = null, field = null) => {
+  const key = (MODULE_ALIASES[module] || module) as keyof typeof infoContent;
+  if (!infoContent[key]) {
     return {
-      title: "Information Not Available",
-      content: "No information available for this item."
+      title: 'Information not available',
+      content: `No help text is defined for “${module}”.`,
     };
   }
 
-  if (field && infoContent[module].fields && infoContent[module].fields[field]) {
-    return infoContent[module].fields[field];
+  const mod = infoContent[key];
+
+  if (field && mod.fields && mod.fields[field as keyof typeof mod.fields]) {
+    return mod.fields[field as keyof typeof mod.fields] as { title: string; content: string };
   }
 
-  if (section && infoContent[module].sections && infoContent[module].sections[section]) {
-    return infoContent[module].sections[section];
+  if (section && mod.sections && mod.sections[section as keyof typeof mod.sections]) {
+    return mod.sections[section as keyof typeof mod.sections] as { title: string; content: string };
   }
 
   return {
-    title: infoContent[module].title,
-    content: infoContent[module].description
+    title: mod.title,
+    content: mod.description,
   };
 };
 
@@ -551,17 +637,19 @@ export const getAvailableModules = () => {
 };
 
 // Helper function to get all sections for a module
-export const getModuleSections = (module) => {
-  if (!infoContent[module] || !infoContent[module].sections) {
+export const getModuleSections = (module: string) => {
+  const key = (MODULE_ALIASES[module] || module) as keyof typeof infoContent;
+  if (!infoContent[key] || !infoContent[key].sections) {
     return [];
   }
-  return Object.keys(infoContent[module].sections);
+  return Object.keys(infoContent[key].sections!);
 };
 
 // Helper function to get all fields for a module
-export const getModuleFields = (module) => {
-  if (!infoContent[module] || !infoContent[module].fields) {
+export const getModuleFields = (module: string) => {
+  const key = (MODULE_ALIASES[module] || module) as keyof typeof infoContent;
+  if (!infoContent[key] || !infoContent[key].fields) {
     return [];
   }
-  return Object.keys(infoContent[module].fields);
+  return Object.keys(infoContent[key].fields!);
 };

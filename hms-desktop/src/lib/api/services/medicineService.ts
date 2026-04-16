@@ -50,6 +50,15 @@ const medicineService = {
     return response.data;
   },
 
+  /**
+   * Align catalog stock with DISPENSED prescriptions (expected units from line items vs medicine_transactions).
+   * Optional body: { prescriptionId?: string } to reconcile a single Rx.
+   */
+  reconcileDispensedStock: async (body?: { prescriptionId?: string }) => {
+    const response = await apiClient.post('/medicines/reconcile-dispensed-stock', body || {});
+    return response.data;
+  },
+
   // Get medicine transactions
   getTransactions: async (medicineId?: string, page = 1, limit = 20) => {
     const params: any = { page, limit };

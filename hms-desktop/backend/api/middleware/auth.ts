@@ -178,7 +178,7 @@ export const canAccessPatientData = (userRole: UserRole): boolean => {
 };
 
 export const canAccessFinancialData = (userRole: UserRole): boolean => {
-  return [UserRole.ADMIN, UserRole.RECEPTIONIST].includes(userRole);
+  return ([UserRole.ADMIN, UserRole.RECEPTIONIST] as UserRole[]).includes(userRole);
 };
 
 export const canManageUsers = (userRole: UserRole): boolean => {
@@ -190,22 +190,22 @@ export const canManageSystem = (userRole: UserRole): boolean => {
 };
 
 export const canManageIPD = (userRole: UserRole): boolean => {
-  return [
+  return ([
     UserRole.ADMIN,
     UserRole.DOCTOR,
     UserRole.NURSE,
     UserRole.WARD_MANAGER,
     UserRole.NURSING_SUPERVISOR,
-  ].includes(userRole);
+  ] as UserRole[]).includes(userRole);
 };
 
 export const canManageOT = (userRole: UserRole): boolean => {
-  return [
+  return ([
     UserRole.ADMIN,
     UserRole.DOCTOR,
     UserRole.RECEPTIONIST,
     UserRole.NURSE,
     UserRole.NURSING_SUPERVISOR,
     UserRole.WARD_MANAGER,
-  ].includes(userRole);
+  ] as UserRole[]).includes(userRole);
 };
