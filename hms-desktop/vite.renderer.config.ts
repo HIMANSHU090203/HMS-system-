@@ -6,9 +6,6 @@ export default defineConfig(async () => {
   const react = await import("@vitejs/plugin-react");
   
   return {
-    // Packaged Electron uses loadFile(); default base "/" makes /assets/... resolve to
-    // file:///C:/assets/... and breaks with "Not allowed to load local resource".
-    base: "./",
     plugins: [react.default()],
     resolve: {
       alias: {

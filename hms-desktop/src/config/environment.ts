@@ -16,8 +16,8 @@ export const config = {
   ENABLE_OFFLINE_MODE: import.meta.env.VITE_ENABLE_OFFLINE_MODE === 'true',
   ENABLE_ANALYTICS: import.meta.env.VITE_ENABLE_ANALYTICS === 'true',
   
-  // API Timeout (30s helps Render free-tier cold start)
-  API_TIMEOUT: 30000,
+  // API Timeout
+  API_TIMEOUT: 30000, // 5 seconds - reduced for faster retries during backend restarts
   
   // Pagination
   DEFAULT_PAGE_SIZE: 20,
