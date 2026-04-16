@@ -170,14 +170,15 @@ const createWindow = () => {
         "connect-src 'self' http://localhost:* ws://localhost:*;"
       ].join(' ');
     } else {
-      // Production: More restrictive, no unsafe-eval
+      // Production: packaged app uses file:// — API + uploads live on Render (must match VITE_API_URL host).
+      const apiHost = 'https://hms-system-hj9i.onrender.com';
       csp = [
         "default-src 'self' 'unsafe-inline' data: blob:;",
         "script-src 'self' 'unsafe-inline';",
         "style-src 'self' 'unsafe-inline';",
-        "img-src 'self' data: blob:;",
+        `img-src 'self' data: blob: ${apiHost};`,
         "font-src 'self' data:;",
-        "connect-src 'self' http://localhost:* ws://localhost:* https://hms-system-hj9i.onrender.com;"
+        `connect-src 'self' http://localhost:* ws://localhost:* ${apiHost};`,
       ].join(' ');
     }
     
