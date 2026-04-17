@@ -12,7 +12,7 @@ let backendProcess = null;
 let desktopProcess = null;
 
 // Check if backend is ready
-function checkBackendReady() {
+function checkBackendReady(attemptNumber = 0) {
   return new Promise((resolve) => {
     const req = http.get(BACKEND_URL, (res) => {
       let data = '';
@@ -23,19 +23,53 @@ function checkBackendReady() {
         // Check if response is valid JSON with success: true
         try {
           const json = JSON.parse(data);
-          resolve(res.statusCode === 200 && json.success === true);
+          const isReady = res.statusCode === 200 && json.success === true;
+          
+          // Log success on first successful check
+          if (isReady && attemptNumber === 0) {
+            console.log(`\n✅ Health check successful! Status: ${res.statusCode}, Success: ${json.success}`);
+          }
+          
+          resolve(isReady);
         } catch (e) {
-          resolve(res.statusCode === 200);
+          // If status is 200 but not JSON, still consider it ready
+          if (res.statusCode === 200) {
+            console.log(`⚠️  Health check returned 200 but invalid JSON. Response: ${data.substring(0, 100)}`);
+            resolve(true);
+          } else {
+            // Log non-200 status codes for debugging
+            if (attemptNumber % 10 === 0) { // Log every 10th attempt to avoid spam
+              console.log(`\n⚠️  Health check returned status ${res.statusCode} (attempt ${attemptNumber + 1})`);
+            }
+            resolve(false);
+          }
         }
       });
     });
 
     req.on('error', (err) => {
       // ECONNREFUSED is expected when server isn't ready yet
+      // Log error details every 10th attempt to avoid spam
+      if (attemptNumber % 10 === 0) {
+        const errorType = err.code || err.message;
+        if (errorType === 'ECONNREFUSED') {
+          // This is expected, don't log every time
+          if (attemptNumber === 0) {
+            console.log(`\n🔍 Waiting for backend to start (connection refused is normal at this stage)...`);
+          }
+        } else {
+          // Log unexpected errors
+          console.log(`\n⚠️  Health check error (attempt ${attemptNumber + 1}): ${err.code || err.message}`);
+        }
+      }
       resolve(false);
     });
 
-    req.setTimeout(3000, () => {
+    req.setTimeout(5000, () => {
+      // Increased timeout to 5 seconds for slower systems
+      if (attemptNumber % 10 === 0) {
+        console.log(`\n⏱️  Health check timeout (attempt ${attemptNumber + 1})`);
+      }
       req.destroy();
       resolve(false);
     });
@@ -54,7 +88,7 @@ async function waitForBackend() {
   let checkCount = 0;
 
   while (Date.now() - startTime < MAX_WAIT_TIME) {
-    const isReady = await checkBackendReady();
+    const isReady = await checkBackendReady(checkCount);
     if (isReady) {
       console.log(`\n✅ Backend server is ready! (took ${Math.round((Date.now() - startTime) / 1000)}s)`);
       return true;
@@ -72,6 +106,15 @@ async function waitForBackend() {
 
   console.log(`\n❌ Backend server did not start within ${MAX_WAIT_TIME / 1000} seconds`);
   console.log('   Check the backend logs above for compilation errors.');
+  console.log(`\n🔍 Diagnostic information:`);
+  console.log(`   - Health check URL: ${BACKEND_URL}`);
+  console.log(`   - Total attempts: ${checkCount}`);
+  console.log(`   - Elapsed time: ${Math.round((Date.now() - startTime) / 1000)}s`);
+  console.log(`\n💡 Troubleshooting steps:`);
+  console.log(`   1. Check if backend process is still running`);
+  console.log(`   2. Verify backend is listening on port 3000: curl http://localhost:3000/health`);
+  console.log(`   3. Check for TypeScript compilation errors in backend logs`);
+  console.log(`   4. Ensure database is running and accessible`);
   return false;
 }
 
@@ -80,22 +123,32 @@ function startBackend() {
   console.log('🚀 Starting backend server...');
   const backendDir = path.join(__dirname, '..', 'hms-desktop', 'backend');
   
+  console.log(`   Backend directory: ${backendDir}`);
+  console.log(`   Command: npm run dev`);
+  
   backendProcess = spawn('npm', ['run', 'dev'], {
     cwd: backendDir,
     stdio: 'inherit',
-    shell: true
+    shell: true,
+    env: { ...process.env }
   });
 
   backendProcess.on('error', (error) => {
     console.error('❌ Failed to start backend:', error.message);
+    console.error('   Error details:', error);
     process.exit(1);
   });
 
   backendProcess.on('exit', (code) => {
     if (code !== 0 && code !== null) {
-      console.error(`❌ Backend process exited with code ${code}`);
+      console.error(`\n❌ Backend process exited with code ${code}`);
+      console.error('   This usually indicates a compilation error or runtime crash.');
+      console.error('   Check the backend logs above for details.');
     }
   });
+
+  // Log when backend process starts
+  console.log('   Backend process started (PID: ' + backendProcess.pid + ')');
 }
 
 // Start desktop

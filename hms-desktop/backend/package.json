@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "nodemon --exec ts-node src/index.ts",
+    "dev": "nodemon --exec ts-node api/index.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -17,8 +17,9 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "prisma:seed": "ts-node prisma/seed.ts",
-    "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix"
+    "backfill:prescription-totals": "ts-node api/scripts/backfill-prescription-totals.ts",
+    "lint": "eslint api/**/*.ts",
+    "lint:fix": "eslint api/**/*.ts --fix"
   },
   "keywords": [
     "hms",
@@ -49,7 +50,8 @@
     "typescript": "^5.9.3",
     "winston": "^3.18.3",
     "xlsx": "^0.18.5",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "axios": "^1.7.9"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -62,6 +64,7 @@
     "nodemon": "^3.1.10",
     "prisma": "^6.19.0",
     "supertest": "^7.1.4",
+    "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2"
   }
 }

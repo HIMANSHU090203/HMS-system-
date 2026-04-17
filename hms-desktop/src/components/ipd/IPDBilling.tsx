@@ -5,6 +5,7 @@ import configService from '../../lib/api/services/configService';
 import InvoicePDFGenerator from '../../lib/utils/invoicePDFGenerator';
 import { PaymentStatus, PaymentMode } from '../../lib/api/types';
 import { useHospitalConfig } from '../../lib/contexts/HospitalConfigContext';
+import { autoSelectIfZero, autoSelectIfZeroMouseDown } from '../../lib/utils/numberInput';
 
 const IPDBilling = ({ onBack, isAuthenticated, user }) => {
   const { formatCurrency } = useHospitalConfig();
@@ -262,7 +263,7 @@ const IPDBilling = ({ onBack, isAuthenticated, user }) => {
         billNumber: billDetails.invoiceNumber || billDetails.id || bill.id,
         billDate: billDetails.createdAt || new Date().toISOString(),
         ipNumber: billDetails.admission?.id || selectedAdmission?.id || '',
-        idNumber: billDetails.patient?.id || selectedAdmission?.patient?.id || '',
+        idNumber: billDetails.patient?.id ?? selectedAdmission?.patient?.id ?? '',
         patient: {
           id: billDetails.patient?.id || selectedAdmission?.patient?.id || '',
           name: billDetails.patient?.name || selectedAdmission?.patient?.name || 'N/A',
@@ -564,6 +565,8 @@ const IPDBilling = ({ onBack, isAuthenticated, user }) => {
                 name: 'roomCharges',
                 value: billForm.roomCharges,
                 onChange: handleBillInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 required: true,
                 min: '0',
                 step: '0.01',
@@ -584,6 +587,8 @@ const IPDBilling = ({ onBack, isAuthenticated, user }) => {
                 name: 'procedureCharges',
                 value: billForm.procedureCharges,
                 onChange: handleBillInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 min: '0',
                 step: '0.01',
                 style: { width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #dee2e6' }
@@ -598,6 +603,8 @@ const IPDBilling = ({ onBack, isAuthenticated, user }) => {
                 name: 'medicineCharges',
                 value: billForm.medicineCharges,
                 onChange: handleBillInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 min: '0',
                 step: '0.01',
                 style: { width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #dee2e6' }
@@ -612,6 +619,8 @@ const IPDBilling = ({ onBack, isAuthenticated, user }) => {
                 name: 'labCharges',
                 value: billForm.labCharges,
                 onChange: handleBillInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 min: '0',
                 step: '0.01',
                 style: { width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #dee2e6' }
@@ -626,6 +635,8 @@ const IPDBilling = ({ onBack, isAuthenticated, user }) => {
                 name: 'otherCharges',
                 value: billForm.otherCharges,
                 onChange: handleBillInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 min: '0',
                 step: '0.01',
                 style: { width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #dee2e6' }
@@ -840,6 +851,8 @@ const IPDBilling = ({ onBack, isAuthenticated, user }) => {
                           placeholder: 'Paid Amount',
                           value: paymentForm.paidAmount,
                           onChange: (e) => setPaymentForm({ ...paymentForm, paidAmount: e.target.value }),
+                          onFocus: autoSelectIfZero,
+                          onMouseDown: autoSelectIfZeroMouseDown,
                           style: { width: '100%', padding: '5px', marginBottom: '5px', borderRadius: '4px', border: '1px solid #dee2e6' }
                         }),
                         React.createElement('select', {

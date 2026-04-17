@@ -9,6 +9,16 @@ import {
 import LoadingSpinner from '../common/LoadingSpinner';
 import InfoButton from '../common/InfoButton';
 import { getInfoContent } from '../../lib/infoContent';
+import userService from '../../lib/api/services/userService';
+import patientService from '../../lib/api/services/patientService';
+import appointmentService from '../../lib/api/services/appointmentService';
+import { UserRole } from '../../lib/api/types';
+import {
+  loadDoctorDashboardData,
+  loadReceptionistDashboardData,
+  loadLabTechDashboardData,
+  loadPharmacyDashboardData,
+} from '../../lib/utils/roleDashboardData';
 
 const RoleBasedDashboard = ({ user, onNavigate, onLogout, currentModule = 'dashboard' }) => {
   const [dashboardData, setDashboardData] = useState({});
@@ -33,70 +43,71 @@ const RoleBasedDashboard = ({ user, onNavigate, onLogout, currentModule = 'dashb
 
   useEffect(() => {
     loadDashboardData();
-  }, [userRole]);
+  }, [userRole, user?.id]);
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
       setError('');
-      
-      // Simulate API calls for different dashboard data based on role
-      const mockData = await getMockDashboardData(userRole);
-      setDashboardData(mockData);
+
+      if (userRole === UserRole.ADMIN) {
+        const [userStatsResult, patientStatsResult, appointmentStatsResult, usersListResult, patientsListResult] = await Promise.allSettled([
+          userService.getUserStats(),
+          patientService.getPatientStats(),
+          appointmentService.getAppointmentStats(),
+          userService.getUsers({ page: 1, limit: 5 }),
+          patientService.getPatients({ page: 1, limit: 5 }),
+        ]);
+
+        const userStats = userStatsResult.status === 'fulfilled' ? userStatsResult.value : null;
+        const patientStats = patientStatsResult.status === 'fulfilled' ? patientStatsResult.value : null;
+        const appointmentStats = appointmentStatsResult.status === 'fulfilled' ? appointmentStatsResult.value : null;
+        const usersList = usersListResult.status === 'fulfilled' ? usersListResult.value : null;
+        const patientsList = patientsListResult.status === 'fulfilled' ? patientsListResult.value : null;
+
+        const recentUsers = (usersList?.users || []).map((u) => ({
+          name: u.fullName,
+          time: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '',
+          status: u.isActive ? 'Active' : 'Inactive',
+          role: u.role,
+        }));
+        const recentPatients = (patientsList?.patients || []).map((p) => ({
+          name: p.name,
+          time: p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '',
+          phone: p.phone,
+        }));
+
+        setDashboardData({
+          totalUsers: userStats?.totalUsers ?? 0,
+          totalPatients: patientStats?.totalPatients ?? 0,
+          totalAppointments: appointmentStats?.totalAppointments ?? 0,
+          systemAlerts: [],
+          recentActivities: [],
+          userActivity: [],
+          recentUsers,
+          recentPatients,
+        });
+      } else if (userRole === UserRole.DOCTOR && user?.id) {
+        const data = await loadDoctorDashboardData(user.id);
+        setDashboardData(data);
+      } else if (userRole === UserRole.RECEPTIONIST) {
+        const data = await loadReceptionistDashboardData();
+        setDashboardData(data);
+      } else if (userRole === UserRole.LAB_TECH) {
+        const data = await loadLabTechDashboardData();
+        setDashboardData(data);
+      } else if (userRole === UserRole.PHARMACY) {
+        const data = await loadPharmacyDashboardData();
+        setDashboardData(data);
+      } else {
+        setDashboardData({});
+      }
     } catch (err) {
       console.error('Dashboard data error:', err);
       setError('Error loading dashboard data');
     } finally {
       setLoading(false);
     }
-  };
-
-  const getMockDashboardData = async (role) => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Return empty data - all data will come from real API calls
-    return {
-      ADMIN: {
-        totalUsers: 0,
-        totalPatients: 0,
-        totalAppointments: 0,
-        systemAlerts: [],
-        recentActivities: []
-      },
-      DOCTOR: {
-        todayAppointments: 0,
-        pendingConsultations: 0,
-        totalPatients: 0,
-        todaySchedule: [],
-        recentPatients: []
-      },
-      RECEPTIONIST: {
-        todayAppointments: 0,
-        newPatients: 0,
-        pendingBills: 0,
-        patientQueue: [],
-        paymentStatus: {
-          collected: 0,
-          pending: 0,
-          overdue: 0
-        }
-      },
-      LAB_TECH: {
-        pendingTests: 0,
-        completedToday: 0,
-        totalSamples: 0,
-        pendingTestsList: [],
-        equipmentStatus: []
-      },
-      PHARMACY: {
-        pendingPrescriptions: 0,
-        lowStock: 0,
-        dispensedToday: 0,
-        pendingPrescriptionsList: [],
-        lowStockItems: []
-      },
-    }[role] || {};
   };
 
   const handleQuickAction = (action, module) => {
@@ -128,10 +139,18 @@ const RoleBasedDashboard = ({ user, onNavigate, onLogout, currentModule = 'dashb
     marginBottom: '16px'
   });
 
+  const formatStatDisplay = (key, value) => {
+    if (value === undefined || value === null) return 0;
+    if ((key === 'monthlyRevenue' || key === 'totalRevenue') && typeof value === 'number') {
+      return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    }
+    return value;
+  };
+
   const renderStatsWidget = (widget) => {
     const stats = widget.data.map(statKey => ({
       key: statKey,
-      value: dashboardData[statKey] || 0,
+      value: formatStatDisplay(statKey, dashboardData[statKey]),
       label: statKey.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())
     }));
 
@@ -193,10 +212,10 @@ const RoleBasedDashboard = ({ user, onNavigate, onLogout, currentModule = 'dashb
               { style: { fontWeight: '500', color: '#111827', fontSize: '14px' } },
               item.name || item.patient || item.user || 'N/A'
             ),
-            item.time && React.createElement(
+            (item.time || item.role || item.phone) && React.createElement(
               'div',
               { style: { fontSize: '12px', color: '#6B7280' } },
-              item.time
+              [item.role, item.time, item.phone].filter(Boolean).join(' · ')
             )
           ),
           item.status && React.createElement(

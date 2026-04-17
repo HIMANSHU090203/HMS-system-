@@ -2,15 +2,11 @@ import React, { useState, useEffect } from 'react';
 import appointmentService from '../../lib/api/services/appointmentService';
 import patientService from '../../lib/api/services/patientService';
 import LoadingSpinner from '../common/LoadingSpinner';
-import InfoButton from '../common/InfoButton';
-import { getInfoContent } from '../../lib/infoContent';
-
 const AppointmentManagement = ({ user, isAuthenticated, onNavigate }) => {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [showAddForm, setShowAddForm] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState(null);
   const [doctors, setDoctors] = useState([]);
   const [patients, setPatients] = useState([]);
@@ -144,7 +140,7 @@ const AppointmentManagement = ({ user, isAuthenticated, onNavigate }) => {
         }
       }
 
-      setShowAddForm(false);
+      setEditingAppointment(null);
       setFormData({
         patientId: '',
         doctorId: '',
@@ -178,8 +174,7 @@ const AppointmentManagement = ({ user, isAuthenticated, onNavigate }) => {
         time: appointment.time,
         status: appointment.status
       });
-      setShowAddForm(true);
-      // Store appointment ID for update
+      // Store appointment ID for update (inline form only for edit; new bookings use OPD Flow)
       setEditingAppointment(appointment);
     } catch (err) {
       console.error('Error preparing edit:', err);
@@ -204,6 +199,26 @@ const AppointmentManagement = ({ user, isAuthenticated, onNavigate }) => {
     } catch (err) {
       console.error('Cancel appointment error:', err);
       setError('Error cancelling appointment: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (appointment) => {
+    if (!window.confirm(`Are you sure you want to delete this appointment for ${appointment.patient?.name || 'this patient'}? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+      await appointmentService.deleteAppointment(appointment.id);
+      setSuccess('Appointment deleted successfully');
+      await loadAppointments();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Delete appointment error:', err);
+      setError('Error deleting appointment: ' + (err.response?.data?.message || err.message));
     } finally {
       setLoading(false);
     }
@@ -255,51 +270,17 @@ const AppointmentManagement = ({ user, isAuthenticated, onNavigate }) => {
           'h1',
           { style: { fontSize: '16px', fontWeight: '600', color: '#000000', margin: 0 } },
           '📅 Appointment Management'
-        ),
-        React.createElement(
-          'button',
-          {
-            onClick: () => {
-              setShowAddForm(!showAddForm);
-              setEditingAppointment(null);
-              setFormData({
-                patientId: '',
-                doctorId: '',
-                date: '',
-                time: '09:00',
-                status: 'SCHEDULED'
-              });
-            },
-            style: {
-              backgroundColor: '#0078D4',
-              color: '#FFFFFF',
-              border: '1px solid #005A9E',
-              padding: '4px 12px',
-              borderRadius: '2px',
-              fontSize: '13px',
-              fontWeight: '400',
-              cursor: 'pointer',
-              boxShadow: 'inset 0 1px 0 0 rgba(255, 255, 255, 0.2)'
-            },
-            onMouseOver: (e) => {
-              e.target.style.backgroundColor = '#005A9E';
-            },
-            onMouseOut: (e) => {
-              e.target.style.backgroundColor = '#0078D4';
-            }
-          },
-          showAddForm ? 'Cancel' : '+ Book Appointment'
         )
       ),
 
-      // Add Appointment Form
-      showAddForm && React.createElement(
+      // Edit appointment only (book via OPD Flow)
+      editingAppointment && React.createElement(
         'div',
         { style: { backgroundColor: '#FFFFFF', padding: '8px 12px', border: '1px solid #C8C8C8', marginBottom: '8px' } },
         React.createElement(
           'h3',
           { style: { fontSize: '14px', fontWeight: '600', color: '#000000', margin: 0, marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid #C8C8C8' } },
-          editingAppointment ? 'Edit Appointment' : 'Book New Appointment'
+          'Edit Appointment'
         ),
         React.createElement(
           'form',
@@ -404,7 +385,6 @@ const AppointmentManagement = ({ user, isAuthenticated, onNavigate }) => {
               {
                 type: 'button',
                 onClick: () => {
-                  setShowAddForm(false);
                   setEditingAppointment(null);
                   setFormData({
                     patientId: '',
@@ -462,7 +442,7 @@ const AppointmentManagement = ({ user, isAuthenticated, onNavigate }) => {
                   }
                 }
               },
-              loading ? (editingAppointment ? 'Updating...' : 'Booking...') : (editingAppointment ? 'Update Appointment' : 'Book Appointment')
+              loading ? 'Updating...' : 'Update Appointment'
             )
           )
         )
@@ -577,7 +557,7 @@ const AppointmentManagement = ({ user, isAuthenticated, onNavigate }) => {
               React.createElement(
                 'td',
                 { colSpan: 6, className: 'px-6 py-4 text-center text-gray-500' },
-                loading ? 'Loading...' : 'No appointments found. Click "Book Appointment" to schedule your first appointment.'
+                loading ? 'Loading...' : 'No appointments found. Book visits from OPD Flow.'
               )
             ) : appointments.map((appointment, index) => React.createElement(
               'tr',
@@ -626,9 +606,17 @@ const AppointmentManagement = ({ user, isAuthenticated, onNavigate }) => {
                   'button',
                   {
                     onClick: () => handleCancel(appointment),
-                    className: 'text-red-600 hover:text-red-900 cursor-pointer'
+                    className: 'text-red-600 hover:text-red-900 mr-3 cursor-pointer'
                   },
                   'Cancel'
+                ),
+                React.createElement(
+                  'button',
+                  {
+                    onClick: () => handleDelete(appointment),
+                    className: 'text-red-600 hover:text-red-900 cursor-pointer'
+                  },
+                  'Delete'
                 )
               )
             ))

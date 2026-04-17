@@ -3,8 +3,6 @@ import admissionService from '../../lib/api/services/admissionService';
 import wardService from '../../lib/api/services/wardService';
 import bedService from '../../lib/api/services/bedService';
 import patientService from '../../lib/api/services/patientService';
-import InfoButton from '../common/InfoButton';
-import { getInfoContent } from '../../lib/infoContent';
 import { useHospitalConfig } from '../../lib/contexts/HospitalConfigContext';
 
 const AdmissionManagement = ({ onBack, isAuthenticated }) => {

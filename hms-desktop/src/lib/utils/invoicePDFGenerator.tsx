@@ -125,7 +125,13 @@ function getCurrencySymbol(currencyCode) {
 }
 
 // Format currency based on hospital config
-function formatCurrency(amount, currencyCode = 'USD') {
+// CRITICAL: currencyCode should always be provided from hospitalConfig, but we keep USD as absolute fallback
+function formatCurrency(amount, currencyCode) {
+  // If no currency code provided, log warning but use USD as absolute fallback
+  if (!currencyCode) {
+    console.warn('[InvoicePDFGenerator] formatCurrency called without currencyCode, using USD as fallback');
+    currencyCode = 'USD';
+  }
   const symbol = getCurrencySymbol(currencyCode);
   return `${symbol}${Number(amount).toFixed(2)}`;
 }
@@ -136,7 +142,11 @@ const InvoicePDFGenerator = {
     const printWindow = window.open('', '_blank');
     
     const hospitalConfig = invoiceData.hospitalConfig || {};
-    const currency = hospitalConfig.currency || 'USD';
+    // CRITICAL: Use displayCurrency if available, otherwise currency, never default to USD
+    const currency = hospitalConfig.displayCurrency || hospitalConfig.currency;
+    if (!currency) {
+      console.error('[InvoicePDFGenerator] No currency found in hospitalConfig!', hospitalConfig);
+    }
     const patient = invoiceData.patient || {};
     const items = invoiceData.items || {};
     
@@ -598,7 +608,13 @@ const InvoicePDFGenerator = {
     const printWindow = window.open('', '_blank');
     
     const hospitalConfig = invoiceData.hospitalConfig || {};
-    const currency = hospitalConfig.currency || 'USD';
+    // CRITICAL: Use displayCurrency if available, otherwise currency, never default to USD
+    const currency = hospitalConfig.displayCurrency || hospitalConfig.currency;
+    if (!currency) {
+      console.error('[InvoicePDFGenerator] No currency found in hospitalConfig!', hospitalConfig);
+    } else {
+      console.log('[InvoicePDFGenerator] Generating IPD bill with currency:', currency);
+    }
     const patient = invoiceData.patient || {};
     const admission = invoiceData.admission || {};
     
@@ -1030,7 +1046,13 @@ const InvoicePDFGenerator = {
     const printWindow = window.open('', '_blank');
     
     const hospitalConfig = orderData.hospitalConfig || {};
-    const currency = hospitalConfig.currency || 'USD';
+    // CRITICAL: Use displayCurrency if available, otherwise currency, never default to USD
+    const currency = hospitalConfig.displayCurrency || hospitalConfig.currency;
+    if (!currency) {
+      console.error('[InvoicePDFGenerator] No currency found in hospitalConfig!', hospitalConfig);
+    } else {
+      console.log('[InvoicePDFGenerator] Generating Purchase Order with currency:', currency);
+    }
     const supplier = orderData.supplier || {};
     const orderItems = orderData.orderItems || [];
     

@@ -182,11 +182,56 @@ const IPDManagement = ({ onBack, isAuthenticated, user }) => {
         isAuthenticated: isAuthenticated,
         user: user
       })
-    ) : CurrentComponent ? React.createElement(CurrentComponent, {
-      onBack: handleBackToDashboard,
-      isAuthenticated: isAuthenticated,
-      user: user
-    }) : React.createElement(
+    ) : CurrentComponent ? React.createElement(
+      'div',
+      {
+        style: {
+          backgroundColor: '#FFFFFF',
+          border: '1px solid #E5E7EB',
+          borderRadius: '8px',
+          overflow: 'hidden'
+        }
+      },
+      React.createElement(
+        'div',
+        {
+          style: {
+            padding: '8px 12px',
+            borderBottom: '1px solid #E5E7EB',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }
+        },
+        React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: handleBackToDashboard,
+            style: {
+              background: 'none',
+              border: 'none',
+              color: '#2563EB',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500'
+            },
+            onMouseOver: (e) => {
+              e.currentTarget.style.textDecoration = 'underline';
+            },
+            onMouseOut: (e) => {
+              e.currentTarget.style.textDecoration = 'none';
+            }
+          },
+          '← Back to IPD Dashboard'
+        )
+      ),
+      React.createElement(CurrentComponent, {
+        onBack: handleBackToDashboard,
+        isAuthenticated: isAuthenticated,
+        user: user
+      })
+    ) : React.createElement(
       'div',
       { 
         style: { 

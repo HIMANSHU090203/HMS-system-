@@ -63,16 +63,12 @@ apiClient.interceptors.response.use(
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
 
-      // Only log if there was a token (to avoid spam on public routes)
+      // Notify app to show login (App listens for this and clears auth state)
       if (hadToken) {
         console.warn('Authentication failed - token expired or invalid. Please log in again.');
-        
-        // If we're not already on the login page, trigger a reload to show login
-        // This will be handled by App.tsx's checkAuthStatus
-        if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
-          // Don't reload immediately - let the component handle it
-          // The App component will detect the missing token and show login
-        }
+        try {
+          window.dispatchEvent(new CustomEvent('auth:sessionExpired'));
+        } catch (_) {}
       }
     }
 

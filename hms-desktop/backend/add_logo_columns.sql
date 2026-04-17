@@ -28,3 +28,8 @@ ALTER TABLE "hospital_config" ADD COLUMN IF NOT EXISTS "logo_mime_type" VARCHAR(
 
 
 
+
+
+
+
+

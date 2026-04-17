@@ -22,6 +22,8 @@ import { getInfoContent } from '../lib/infoContent';
 import MedicineManagement from './medicines/MedicineManagement';
 import BillingManagement from './billing/BillingManagement';
 import IPDManagement from './ipd/IPDManagement';
+import OTManagement from './ot/OTManagement';
+import PatientJourneyModule from './patientJourney/PatientJourneyModule';
 import { User, ModuleName } from '../types';
 
 type SetupState = null | 'checking' | 'hospitalSetup' | 'userOnboarding' | 'ready' | 'backendOffline';
@@ -48,6 +50,16 @@ const App: React.FC = () => {
 
   useEffect(() => {
     checkSetupState();
+  }, []);
+
+  // When any API returns 401, clear auth state so login screen is shown
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setUser(null);
+      setIsAuthenticated(false);
+    };
+    window.addEventListener('auth:sessionExpired', handleSessionExpired);
+    return () => window.removeEventListener('auth:sessionExpired', handleSessionExpired);
   }, []);
 
   // Separate effect for auto-retry when backend is offline
@@ -298,6 +310,12 @@ const App: React.FC = () => {
           onLogout: handleLogout,
           currentModule: currentModule
         });
+      case 'opdFlow':
+        return React.createElement(PatientJourneyModule, {
+          user,
+          isAuthenticated,
+          onBack: () => handleNavigation('dashboard'),
+        });
       case 'patients':
         return React.createElement(PatientManagement, { user, isAuthenticated });
       case 'appointments':
@@ -320,6 +338,8 @@ const App: React.FC = () => {
         return React.createElement(BillingManagement, { user, isAuthenticated, onBack: () => handleNavigation('dashboard') });
       case 'ipd':
         return React.createElement(IPDManagement, { user, isAuthenticated, onBack: () => handleNavigation('dashboard') });
+      case 'ot':
+        return React.createElement(OTManagement, { user, isAuthenticated, onBack: () => handleNavigation('dashboard') });
       case 'configuration':
         return React.createElement(ConfigurationManagement, { user });
       default:

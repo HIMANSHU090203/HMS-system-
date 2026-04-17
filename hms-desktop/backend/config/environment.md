@@ -66,6 +66,11 @@ DEFAULT_TAX_RATE="18"
 DEBUG="true"
 ENABLE_SWAGGER="true"
 ENABLE_LOGGING="true"
+
+# Currency (optional)
+# ZenHosp is INR-only by default. The exchange-rate scheduler does not run unless you opt in.
+# Set to true only if you need automatic multi-currency rate sync into the database.
+# ENABLE_CURRENCY_SCHEDULER="true"
 ```
 
 ## Setup Instructions

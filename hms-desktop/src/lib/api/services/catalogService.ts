@@ -6,7 +6,7 @@ export interface Allergy {
   code: string;
   name: string;
   category: string;
-  severity: string;
+  description?: string | null;
   isActive: boolean;
 }
 
@@ -15,6 +15,8 @@ export interface ChronicCondition {
   code: string;
   name: string;
   category: string;
+  icdCode?: string | null;
+  description?: string | null;
   isActive: boolean;
 }
 

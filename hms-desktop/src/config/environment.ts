@@ -17,7 +17,7 @@ export const config = {
   ENABLE_ANALYTICS: import.meta.env.VITE_ENABLE_ANALYTICS === 'true',
   
   // API Timeout
-  API_TIMEOUT: 5000, // 5 seconds - reduced for faster retries during backend restarts
+  API_TIMEOUT: 30000, // 5 seconds - reduced for faster retries during backend restarts
   
   // Pagination
   DEFAULT_PAGE_SIZE: 20,

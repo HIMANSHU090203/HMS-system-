@@ -2,19 +2,18 @@ import React, { useState, useEffect } from 'react';
 import prescriptionService from '../../lib/api/services/prescriptionService';
 import medicineService from '../../lib/api/services/medicineService';
 import patientService from '../../lib/api/services/patientService';
+import appointmentService from '../../lib/api/services/appointmentService';
 import userService from '../../lib/api/services/userService';
-import safetyService from '../../lib/api/services/safetyService';
 import auditService from '../../lib/api/services/auditService';
 import configService from '../../lib/api/services/configService';
 import consultationService from '../../lib/api/services/consultationService';
-import MedicineSearchAutocomplete from '../common/MedicineSearchAutocomplete';
-import SafetyWarning from '../common/SafetyWarning';
 import PrescriptionTemplates from './PrescriptionTemplates';
 import PrescriptionPDFGenerator from '../../lib/utils/prescriptionPDFGenerator';
 import AuditLogs from '../common/AuditLogs';
 import InfoButton from '../common/InfoButton';
 import { getInfoContent } from '../../lib/infoContent';
 import { useHospitalConfig } from '../../lib/contexts/HospitalConfigContext';
+import { calculateAge } from '../../lib/utils/ageCalculator';
 
 const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
   const { formatCurrency: formatCurrencyUtil, config: hospitalConfig } = useHospitalConfig();
@@ -30,30 +29,11 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
   const [statusFilter, setStatusFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [showCreateForm, setShowCreateForm] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
-  const [editingPrescription, setEditingPrescription] = useState(null);
   const [stats, setStats] = useState(null);
-  const [safetyWarnings, setSafetyWarnings] = useState([]);
-  const [safetyRecommendations, setSafetyRecommendations] = useState([]);
-  const [showSafetyWarning, setShowSafetyWarning] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showAuditLogs, setShowAuditLogs] = useState(false);
   const [selectedPrescriptionForAudit, setSelectedPrescriptionForAudit] = useState(null);
-
-  // Form states
-  const [formData, setFormData] = useState({
-    patientId: '',
-    appointmentId: '',
-    consultationId: '',
-    notes: '',
-    items: []
-  });
-
-  // Debug form data changes
-  useEffect(() => {
-    console.log('Form data updated:', formData);
-  }, [formData]);
 
   const [previewData, setPreviewData] = useState(null);
 
@@ -118,8 +98,30 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
 
   const loadPatients = async () => {
     try {
-      const response = await patientService.getPatients({ limit: 100 });
-      setPatients(response.patients || []);
+      // Doctors see only patients who have an appointment with them; admin/receptionist see full list
+      if (user?.role === 'DOCTOR') {
+        const { appointments } = await appointmentService.getAppointments({ limit: 500 });
+        const seen = new Set();
+        const patientList = [];
+        for (const apt of appointments || []) {
+          const p = apt.patient;
+          if (p && p.id && !seen.has(p.id)) {
+            seen.add(p.id);
+            patientList.push({
+              id: p.id,
+              name: p.name || 'Unknown',
+              gender: p.gender || 'N/A',
+              dateOfBirth: p.dateOfBirth,
+              age: p.dateOfBirth ? calculateAge(p.dateOfBirth) : undefined,
+              phone: p.phone
+            });
+          }
+        }
+        setPatients(patientList);
+      } else {
+        const response = await patientService.getPatients({ limit: 100 });
+        setPatients(response.patients || []);
+      }
     } catch (err) {
       console.error('Error loading patients:', err);
       if (err.response?.status === 403) {
@@ -164,61 +166,6 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
     }
   };
 
-  const handleCreatePrescription = async (e) => {
-    e.preventDefault();
-    console.log('Creating prescription with data:', formData);
-    
-    if (formData.items.length === 0) {
-      setError('Please add at least one medicine to the prescription');
-      return;
-    }
-
-    if (!formData.patientId) {
-      setError('Please select a patient');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      console.log('Sending prescription data to API:', formData);
-      const response = await prescriptionService.createPrescription(formData);
-      console.log('Prescription creation response:', response);
-      
-      if (response.prescription) {
-        setSuccess('✅ Prescription created successfully!');
-        
-        // Immediately export the newly created prescription
-        try {
-          const prescriptionId = response.prescription.id;
-          await handlePrintPrescription(prescriptionId);
-        } catch (exportError) {
-          console.warn('Could not export prescription immediately:', exportError);
-          // Don't fail the creation if export fails
-        }
-        
-        setFormData({
-          patientId: '',
-          appointmentId: '',
-          consultationId: '',
-          notes: '',
-          items: []
-        });
-        setShowCreateForm(false);
-        setActiveTab('list');
-        await loadPrescriptions();
-      } else {
-        setError('Failed to create prescription - no prescription data returned');
-      }
-    } catch (err) {
-      console.error('Error creating prescription:', err);
-      setError(err.response?.data?.message || err.message || 'Error creating prescription');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleDispensePrescription = async (prescriptionId) => {
     if (window.confirm('Are you sure you want to dispense this prescription?')) {
@@ -294,115 +241,13 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
     }
   };
 
-  const addPrescriptionItem = () => {
-    console.log('Adding prescription item');
-    setFormData({
-      ...formData,
-      items: [...formData.items, {
-        medicineId: '',
-        quantity: 1,
-        frequency: '',
-        duration: 7,
-        instructions: '',
-        dosage: '',
-        withFood: '',
-        startDate: '',
-        endDate: ''
-      }]
-    });
-  };
-
-  const removePrescriptionItem = (index) => {
-    const newItems = formData.items.filter((_, i) => i !== index);
-    setFormData({
-      ...formData,
-      items: newItems
-    });
-  };
-
-  const updatePrescriptionItem = (index, field, value) => {
-    console.log(`Updating prescription item ${index}, field: ${field}, value:`, value);
-    const newItems = [...formData.items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    setFormData({
-      ...formData,
-      items: newItems
-    });
-  };
-
-  const handlePreviewPrescription = async () => {
-    if (formData.items.length === 0) {
-      setError('Please add at least one medicine to preview');
-      return;
-    }
-
-    // Check safety before preview
-    await checkPrescriptionSafety();
-
-    const selectedPatient = patients.find(p => p.id === formData.patientId);
-    const itemsWithDetails = formData.items.map(item => {
-      const medicine = medicines.find(m => m.id === item.medicineId);
-      return {
-        ...item,
-        medicine: medicine
-      };
-    });
-
-    setPreviewData({
-      patient: selectedPatient,
-      items: itemsWithDetails,
-      notes: formData.notes
-    });
-    setShowPreviewModal(true);
-  };
-
-  const checkPrescriptionSafety = async () => {
-    if (!formData.patientId || formData.items.length === 0) {
-      return;
-    }
-
-    try {
-      const medicineIds = formData.items
-        .filter(item => item.medicineId)
-        .map(item => item.medicineId);
-
-      if (medicineIds.length === 0) {
-        return;
-      }
-
-      const safetyReport = await safetyService.getSafetyReport(formData.patientId, medicineIds);
-      
-      setSafetyWarnings(safetyReport.warnings);
-      setSafetyRecommendations(safetyReport.recommendations);
-      
-      if (safetyReport.warnings.length > 0) {
-        setShowSafetyWarning(true);
-      }
-    } catch (error) {
-      console.error('Error checking prescription safety:', error);
-    }
-  };
 
   const handleSelectTemplate = (template) => {
-    const templateItems = template.templateData.map(item => ({
-      medicineId: item.medicineId,
-      quantity: item.quantity,
-      frequency: item.frequency,
-      duration: item.duration,
-      instructions: item.instructions,
-      dosage: item.dosage,
-      withFood: item.withFood || '',
-      startDate: '',
-      endDate: ''
-    }));
-
-    setFormData({
-      ...formData,
-      items: templateItems,
-      notes: template.description
-    });
-
-    setSuccess(`Template "${template.name}" applied successfully!`);
+    setShowTemplates(false);
+    setSuccess(
+      `Template "${template.name}" is a reference only. Create prescriptions from OPD Flow (Prescription step) for a patient visit.`
+    );
+    setTimeout(() => setSuccess(''), 6000);
   };
 
   const handlePrintPrescription = async (prescriptionId) => {
@@ -909,384 +754,6 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
     )
   );
 
-  const renderCreateForm = () => (
-    React.createElement(
-      'div',
-      { className: 'space-y-6 mt-6' },
-      React.createElement(
-        'form',
-        { onSubmit: handleCreatePrescription },
-        // Patient selection
-        React.createElement(
-          'div',
-          { className: 'bg-white rounded-lg shadow p-6' },
-          React.createElement(
-            'h3',
-            { className: 'text-lg font-medium text-gray-900 mb-4' },
-            'Patient Information'
-          ),
-          React.createElement(
-            'div',
-            { className: 'grid grid-cols-1 md:grid-cols-2 gap-4' },
-            React.createElement(
-              'div',
-              null,
-              React.createElement(
-                'label',
-                { className: 'block text-sm font-medium text-gray-700 mb-2' },
-                'Patient *'
-              ),
-              React.createElement(
-                'select',
-                {
-                  value: formData.patientId,
-                  onChange: (e) => setFormData({ ...formData, patientId: e.target.value }),
-                  className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
-                  required: true
-                },
-                React.createElement('option', { value: '' }, 'Select Patient'),
-                ...patients.map(patient => React.createElement(
-                  'option',
-                  { key: patient.id, value: patient.id },
-                  `${patient.name} (${patient.age} years, ${patient.gender})`
-                ))
-              )
-            ),
-            React.createElement(
-              'div',
-              null,
-              React.createElement(
-                'label',
-                { className: 'block text-sm font-medium text-gray-700 mb-2' },
-                'Appointment ID (Optional)'
-              ),
-              React.createElement(
-                'input',
-                {
-                  type: 'text',
-                  value: formData.appointmentId,
-                  onChange: (e) => setFormData({ ...formData, appointmentId: e.target.value }),
-                  className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
-                }
-              )
-            )
-          )
-        ),
-
-        // Medicine items
-        React.createElement(
-          'div',
-          { className: 'bg-white rounded-lg shadow p-6' },
-          React.createElement(
-            'div',
-            { className: 'flex justify-between items-center mb-4' },
-            React.createElement(
-              'h3',
-              { className: 'text-lg font-medium text-gray-900' },
-              'Prescription Items'
-            ),
-            React.createElement(
-              'div',
-              { className: 'flex space-x-2' },
-              React.createElement(
-                'button',
-                {
-                  type: 'button',
-                  onClick: addPrescriptionItem,
-                  className: 'px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700'
-                },
-                '+ Add Medicine'
-              ),
-              React.createElement(
-                'button',
-                {
-                  type: 'button',
-                  onClick: () => setShowTemplates(true),
-                  className: 'px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700'
-                },
-                '📋 Use Template'
-              )
-            )
-          ),
-          formData.items.length === 0 ? React.createElement(
-            'div',
-            { className: 'text-center py-8 text-gray-500' },
-            'No medicines added yet. Click "Add Medicine" to start.'
-          ) : React.createElement(
-            'div',
-            { className: 'space-y-4' },
-            ...formData.items.map((item, index) => React.createElement(
-              'div',
-              { key: index, className: 'border border-gray-200 rounded-lg p-4' },
-              React.createElement(
-                'div',
-                { className: 'flex justify-between items-center mb-3' },
-                React.createElement(
-                  'h4',
-                  { className: 'text-sm font-medium text-gray-700' },
-                  `Medicine ${index + 1}`
-                ),
-                React.createElement(
-                  'button',
-                  {
-                    type: 'button',
-                    onClick: () => removePrescriptionItem(index),
-                    className: 'text-red-600 hover:text-red-900'
-                  },
-                  'Remove'
-                )
-              ),
-              React.createElement(
-                'div',
-                { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' },
-                React.createElement(
-                  'div',
-                  null,
-                  React.createElement(
-                    'label',
-                    { className: 'block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2' },
-                    'Medicine *',
-                    React.createElement(InfoButton, {
-                      title: getInfoContent('prescriptions', null, 'medicine').title,
-                      content: getInfoContent('prescriptions', null, 'medicine').content,
-                      size: 'xs'
-                    })
-                  ),
-                  React.createElement(
-                    MedicineSearchAutocomplete,
-                    {
-                      onSelect: (medicine) => updatePrescriptionItem(index, 'medicineId', medicine.id),
-                      placeholder: 'Search medicine by name, manufacturer, or category...',
-                      className: 'w-full'
-                    }
-                  )
-                ),
-                React.createElement(
-                  'div',
-                  null,
-                  React.createElement(
-                    'label',
-                    { className: 'block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2' },
-                    'Quantity *',
-                    React.createElement(InfoButton, {
-                      title: getInfoContent('prescriptions', null, 'quantity').title,
-                      content: getInfoContent('prescriptions', null, 'quantity').content,
-                      size: 'xs'
-                    })
-                  ),
-                  React.createElement(
-                    'input',
-                    {
-                      type: 'number',
-                      min: 1,
-                      value: item.quantity,
-                      onChange: (e) => updatePrescriptionItem(index, 'quantity', parseInt(e.target.value) || 1),
-                      className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
-                      required: true
-                    }
-                  )
-                ),
-                React.createElement(
-                  'div',
-                  null,
-                  React.createElement(
-                    'label',
-                    { className: 'block text-sm font-medium text-gray-700 mb-1' },
-                    'Frequency *'
-                  ),
-                  React.createElement(
-                    'select',
-                    {
-                      value: item.frequency,
-                      onChange: (e) => updatePrescriptionItem(index, 'frequency', e.target.value),
-                      className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
-                      required: true
-                    },
-                    React.createElement('option', { value: '' }, 'Select Frequency'),
-                    React.createElement('option', { value: '1-0-0' }, 'Once daily (1-0-0)'),
-                    React.createElement('option', { value: '1-0-1' }, 'Twice daily (1-0-1)'),
-                    React.createElement('option', { value: '1-1-1' }, 'Three times daily (1-1-1)'),
-                    React.createElement('option', { value: 'QID' }, 'Four times daily (QID)'),
-                    React.createElement('option', { value: 'BD' }, 'Twice daily (BD)'),
-                    React.createElement('option', { value: 'TID' }, 'Three times daily (TID)'),
-                    React.createElement('option', { value: 'HS' }, 'At bedtime (HS)'),
-                    React.createElement('option', { value: 'PRN' }, 'As needed (PRN)')
-                  )
-                ),
-                React.createElement(
-                  'div',
-                  null,
-                  React.createElement(
-                    'label',
-                    { className: 'block text-sm font-medium text-gray-700 mb-1' },
-                    'Duration (days) *'
-                  ),
-                  React.createElement(
-                    'input',
-                    {
-                      type: 'number',
-                      min: 1,
-                      value: item.duration,
-                      onChange: (e) => updatePrescriptionItem(index, 'duration', parseInt(e.target.value) || 7),
-                      className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
-                      required: true
-                    }
-                  )
-                ),
-                React.createElement(
-                  'div',
-                  null,
-                  React.createElement(
-                    'label',
-                    { className: 'block text-sm font-medium text-gray-700 mb-1' },
-                    'Dosage'
-                  ),
-                  React.createElement(
-                    'input',
-                    {
-                      type: 'text',
-                      value: item.dosage,
-                      onChange: (e) => updatePrescriptionItem(index, 'dosage', e.target.value),
-                      placeholder: 'e.g., 500mg, 10ml',
-                      className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
-                    }
-                  )
-                ),
-                React.createElement(
-                  'div',
-                  null,
-                  React.createElement(
-                    'label',
-                    { className: 'block text-sm font-medium text-gray-700 mb-1' },
-                    'With Food'
-                  ),
-                  React.createElement(
-                    'select',
-                    {
-                      value: item.withFood,
-                      onChange: (e) => updatePrescriptionItem(index, 'withFood', e.target.value),
-                      className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
-                    },
-                    React.createElement('option', { value: '' }, 'Select timing'),
-                    React.createElement('option', { value: 'With meal' }, 'With meal'),
-                    React.createElement('option', { value: 'Before meal' }, 'Before meal'),
-                    React.createElement('option', { value: 'After meal' }, 'After meal'),
-                    React.createElement('option', { value: 'Empty stomach' }, 'Empty stomach'),
-                    React.createElement('option', { value: 'Bedtime' }, 'Bedtime')
-                  )
-                )
-              ),
-              React.createElement(
-                'div',
-                { className: 'mt-3' },
-                React.createElement(
-                  'label',
-                  { className: 'block text-sm font-medium text-gray-700 mb-1' },
-                  'Special Instructions'
-                ),
-                React.createElement(
-                  'textarea',
-                  {
-                    value: item.instructions,
-                    onChange: (e) => updatePrescriptionItem(index, 'instructions', e.target.value),
-                    placeholder: 'Additional instructions for this medicine...',
-                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
-                    rows: 2
-                  }
-                )
-              )
-            ))
-          )
-        ),
-
-        // Safety warnings
-        showSafetyWarning && React.createElement(
-          'div',
-          { className: 'bg-white rounded-lg shadow p-6' },
-          React.createElement(
-            SafetyWarning,
-            {
-              warnings: safetyWarnings,
-              recommendations: safetyRecommendations,
-              onDismiss: () => setShowSafetyWarning(false)
-            }
-          )
-        ),
-
-        // Notes
-        React.createElement(
-          'div',
-          { className: 'bg-white rounded-lg shadow p-6' },
-          React.createElement(
-            'h3',
-            { className: 'text-lg font-medium text-gray-900 mb-4' },
-            'Prescription Notes'
-          ),
-          React.createElement(
-            'textarea',
-            {
-              value: formData.notes,
-              onChange: (e) => setFormData({ ...formData, notes: e.target.value }),
-              placeholder: 'General notes for this prescription...',
-              className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
-              rows: 3
-            }
-          )
-        ),
-
-        // Action buttons
-        React.createElement(
-          'div',
-          { className: 'flex justify-end space-x-4' },
-          React.createElement(
-            'button',
-            {
-              type: 'button',
-              onClick: () => setShowCreateForm(false),
-              className: 'px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300'
-            },
-            'Cancel'
-          ),
-          React.createElement(
-            'button',
-            {
-              type: 'button',
-              onClick: handlePreviewPrescription,
-              className: 'px-6 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700'
-            },
-            'Preview'
-          ),
-          React.createElement(
-            'button',
-            {
-              type: 'button',
-              onClick: checkPrescriptionSafety,
-              disabled: !formData.patientId || formData.items.length === 0,
-              className: `px-6 py-2 rounded-lg font-medium ${
-                !formData.patientId || formData.items.length === 0
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-orange-600 text-white hover:bg-orange-700'
-              }`
-            },
-            'Check Safety'
-          ),
-          React.createElement(
-            'button',
-            {
-              type: 'submit',
-              disabled: loading || formData.items.length === 0,
-              className: `px-6 py-2 rounded-lg font-medium ${
-                loading || formData.items.length === 0
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`
-            },
-            loading ? 'Creating...' : 'Create Prescription'
-          )
-        )
-      )
-    )
-  );
 
   const renderPreviewModal = () => (
     showPreviewModal && previewData && React.createElement(
@@ -1397,17 +864,6 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
                 className: 'px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300'
               },
               'Close'
-            ),
-            React.createElement(
-              'button',
-              {
-                onClick: () => {
-                  setShowPreviewModal(false);
-                  handleCreatePrescription({ preventDefault: () => {} });
-                },
-                className: 'px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700'
-              },
-              'Create Prescription'
             )
           )
         )
@@ -1452,7 +908,7 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
           React.createElement(
             'p',
             { className: 'text-3xl font-bold text-yellow-600' },
-            stats.activePrescriptions || 0
+            stats.activePrescriptions ?? stats.pendingPrescriptions ?? 0
           )
         ),
         React.createElement(
@@ -1542,33 +998,6 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
               size: 'md',
               variant: 'info'
             })
-          ),
-          React.createElement(
-            'button',
-            {
-              onClick: () => {
-                setShowCreateForm(!showCreateForm);
-                setActiveTab('list');
-              },
-              style: {
-                backgroundColor: '#0078D4',
-                color: '#FFFFFF',
-                border: '1px solid #005A9E',
-                padding: '4px 12px',
-                borderRadius: '2px',
-                fontSize: '13px',
-                fontWeight: '400',
-                cursor: 'pointer',
-                boxShadow: 'inset 0 1px 0 0 rgba(255, 255, 255, 0.2)'
-              },
-              onMouseOver: (e) => {
-                e.target.style.backgroundColor = '#005A9E';
-              },
-              onMouseOut: (e) => {
-                e.target.style.backgroundColor = '#0078D4';
-              }
-            },
-            showCreateForm ? 'Cancel' : '+ New Prescription'
           )
         )
       ),
@@ -1637,8 +1066,7 @@ const PrescriptionManagement = ({ user, isAuthenticated, onBack }) => {
         React.createElement(
           'div',
           null,
-          renderPrescriptionList(),
-          showCreateForm && renderCreateForm()
+          renderPrescriptionList()
         )
       ),
       activeTab === 'stats' && renderStats(),

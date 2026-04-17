@@ -1,0 +1,106 @@
+import React, { useState, useEffect } from 'react';
+import appointmentService from '../../../lib/api/services/appointmentService';
+import type { Appointment } from '../../../lib/api/types';
+import LoadingSpinner from '../../common/LoadingSpinner';
+import { getOpdQueueRowKind, getOpdQueueRowLabel, type OpdQueueRowKind } from './opdQueueHelpers';
+
+interface TodaysQueueProps {
+  currentUserId: string;
+  /** Called with how this row should open in OPD (consultation vs prescription vs summary). */
+  onSelectAppointment: (appointment: Appointment, kind: OpdQueueRowKind) => void;
+  /** Increment to refetch after completing a prescription, etc. */
+  refreshKey?: number;
+}
+
+const TodaysQueue: React.FC<TodaysQueueProps> = ({
+  currentUserId,
+  onSelectAppointment,
+  refreshKey = 0,
+}) => {
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const today = new Date().toISOString().split('T')[0];
+    setLoading(true);
+    appointmentService
+      .getAppointments({ doctorId: currentUserId, date: today, limit: 100 })
+      .then((data) => {
+        if (!cancelled) setAppointments(data?.appointments || []);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId, refreshKey]);
+
+  const byStatus = (a: Appointment, b: Appointment) => {
+    const order = ['IN_PROGRESS', 'SCHEDULED', 'CONFIRMED', 'COMPLETED', 'NO_SHOW', 'CANCELLED'];
+    return order.indexOf(a.status) - order.indexOf(b.status);
+  };
+  const sorted = [...appointments].sort(byStatus);
+
+  if (loading) return <LoadingSpinner />;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <h3 style={{ margin: '0 0 8px', fontSize: 16 }}>Today&apos;s queue</h3>
+      {sorted.length === 0 ? (
+        <p style={{ color: '#6B7280', fontSize: 14 }}>No appointments for today.</p>
+      ) : (
+        sorted.map((apt) => {
+          const kind = getOpdQueueRowKind(apt);
+          const label = getOpdQueueRowLabel(kind);
+          const isDone = kind === 'completed';
+          const isHeld = kind === 'held';
+          const heldUntil = apt.consultations?.[0]?.heldUntil;
+          return (
+            <div
+              key={apt.id}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '12px 16px',
+                border: `1px solid ${isHeld ? '#FCD34D' : '#E5E7EB'}`,
+                borderRadius: '8px',
+                backgroundColor: isDone ? '#F9FAFB' : isHeld ? '#FFFBEB' : '#FFF',
+                cursor: 'pointer',
+              }}
+              onClick={() => onSelectAppointment(apt, kind)}
+              onKeyDown={(e) => e.key === 'Enter' && onSelectAppointment(apt, kind)}
+              role="button"
+              tabIndex={0}
+            >
+              <div>
+                <span style={{ fontWeight: 600 }}>{(apt as any).patient?.name ?? 'Patient'}</span>
+                <span style={{ marginLeft: 8, color: '#6B7280', fontSize: 14 }}>
+                  {apt.time} · {apt.status}
+                  {heldUntil && (
+                    <span style={{ display: 'block', fontSize: 12, color: '#B45309', marginTop: 2 }}>
+                      Hold until: {new Date(heldUntil).toLocaleString()}
+                    </span>
+                  )}
+                </span>
+              </div>
+              <span
+                style={{
+                  color: isDone ? '#059669' : isHeld ? '#D97706' : '#2563EB',
+                  fontSize: 14,
+                  fontWeight: isDone || isHeld ? 600 : 400,
+                }}
+              >
+                {label}
+              </span>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+};
+
+export default TodaysQueue;

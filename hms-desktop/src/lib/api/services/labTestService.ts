@@ -95,6 +95,11 @@ class LabTestService {
       _count: { testCatalogId: number };
     }>;
     recentLabTests: number;
+    labTestsByDoctor: Array<{
+      orderedBy: string;
+      doctorName: string;
+      count: number;
+    }>;
   }> {
     const response = await apiClient.get<ApiResponse<{
       totalLabTests: number;
@@ -107,6 +112,11 @@ class LabTestService {
         _count: { testCatalogId: number };
       }>;
       recentLabTests: number;
+      labTestsByDoctor: Array<{
+        orderedBy: string;
+        doctorName: string;
+        count: number;
+      }>;
     }>>('/lab-tests/stats');
     return response.data.data;
   }

@@ -298,27 +298,35 @@ export interface Patient {
   age: number;
   gender: Gender;
   phone: string;
+  aadharCardNumber?: string; // Indian patients: 16-digit Aadhar
+  passportNumber?: string;  // Foreign patients: passport number
   address: string;
   bloodGroup?: string;
   allergies?: string;
   chronicConditions?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
+  /** Free text: name of person who referred this patient */
+  referredBy?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreatePatientRequest {
   name: string;
-  age: number;
+  age?: number;
+  dateOfBirth?: string;
   gender: Gender;
   phone: string;
+  aadharCardNumber?: string; // Indian patients
+  passportNumber?: string;   // Foreign patients
   address: string;
   bloodGroup?: string;
   allergies?: string;
   chronicConditions?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
+  referredBy?: string;
 }
 
 export interface UpdatePatientRequest extends Partial<CreatePatientRequest> {}
@@ -344,6 +352,9 @@ export interface Appointment {
   updatedAt: string;
   patient?: Patient;
   doctor?: User;
+  /** Present when list API includes relations (e.g. OPD queue) */
+  consultations?: Array<{ id: string; heldUntil?: string | null }>;
+  prescriptions?: Array<{ id: string; prescriptionNumber: string; status: string }>;
 }
 
 export interface CreateAppointmentRequest {
@@ -368,8 +379,12 @@ export interface Consultation {
   doctorId: string;
   diagnosis: string;
   notes?: string;
+  /** OPD consultation fee (from hospital default at create time unless overridden). */
+  fee?: number | string;
   consultationDate: string;
   createdAt: string;
+  /** When set, OPD visit is paused (e.g. awaiting lab) until cleared. */
+  heldUntil?: string | null;
   appointment?: Appointment;
   patient?: Patient;
   doctor?: User;
@@ -381,11 +396,15 @@ export interface CreateConsultationRequest {
   doctorId: string;
   diagnosis: string;
   notes?: string;
+  /** ISO datetime — consultation on hold; appointment stays in progress. */
+  heldUntil?: string;
 }
 
 export interface UpdateConsultationRequest {
   diagnosis?: string;
   notes?: string;
+  /** Set to null to clear hold when continuing to prescription. */
+  heldUntil?: string | null;
 }
 
 export interface ConsultationSearchParams {
@@ -472,6 +491,8 @@ export interface LabTest {
   createdAt: string;
   completedAt?: string;
   updatedAt: string;
+  consultationId?: string | null;
+  appointmentId?: string | null;
   patient?: Patient;
   orderedByUser?: User;
   testCatalog?: TestCatalog;
@@ -482,6 +503,8 @@ export interface CreateLabTestRequest {
   orderedBy: string;
   testCatalogId: string;
   notes?: string;
+  consultationId?: string;
+  appointmentId?: string;
 }
 
 export interface UpdateLabTestRequest {
@@ -629,10 +652,13 @@ export interface PrescriptionSearchParams {
 export interface PrescriptionStats {
   totalPrescriptions: number;
   pendingPrescriptions: number;
+  /** Matches pending (active, not yet dispensed) — returned for dashboard UI */
+  activePrescriptions?: number;
   dispensedPrescriptions: number;
   cancelledPrescriptions: number;
   totalRevenue: number;
   recentPrescriptions: number;
+  dispensedToday?: number;
 }
 
 // Billing Types
@@ -726,6 +752,38 @@ export enum PaymentStatus {
   PARTIAL = 'PARTIAL',
   REFUNDED = 'REFUNDED',
   CANCELLED = 'CANCELLED',
+}
+
+export enum ExpenseCategory {
+  SALARY = 'SALARY',
+  ELECTRICITY = 'ELECTRICITY',
+  RENT = 'RENT',
+  MAINTENANCE = 'MAINTENANCE',
+  EQUIPMENT = 'EQUIPMENT',
+  SUPPLIES = 'SUPPLIES',
+  OTHER = 'OTHER',
+}
+
+export interface Expense {
+  id: string;
+  category: ExpenseCategory;
+  description: string;
+  amount: number;
+  expenseDate: string;
+  paymentStatus: PaymentStatus;
+  paidAt?: string | null;
+  userId?: string | null;
+  user?: { id: string; fullName: string; role: string } | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProfitLossReport {
+  range: { from: string; to: string };
+  revenue: { opd: number; ipd: number; total: number };
+  expenses: { manual: number; medicinePurchases: number; total: number };
+  profitOrLoss: number;
 }
 
 export interface BillItem {

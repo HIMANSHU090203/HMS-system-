@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import medicineService from '../../lib/api/services/medicineService';
 import { useHospitalConfig } from '../../lib/contexts/HospitalConfigContext';
+import { autoSelectIfZero, autoSelectIfZeroMouseDown } from '../../lib/utils/numberInput';
 
 const OrderManagement = ({ onBack }) => {
   const { formatCurrency, formatDate: formatDateUtil } = useHospitalConfig();
@@ -517,6 +518,8 @@ ${itemsList}
                     min: 1,
                     value: item.quantity,
                     onChange: (e) => handleOrderItemChange(index, 'quantity', parseInt(e.target.value)),
+                    onFocus: autoSelectIfZero,
+                    onMouseDown: autoSelectIfZeroMouseDown,
                     className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
                     required: true
                   }
@@ -538,6 +541,8 @@ ${itemsList}
                     step: 0.01,
                     value: item.unitPrice,
                     onChange: (e) => handleOrderItemChange(index, 'unitPrice', parseFloat(e.target.value)),
+                    onFocus: autoSelectIfZero,
+                    onMouseDown: autoSelectIfZeroMouseDown,
                     className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
                     required: true
                   }

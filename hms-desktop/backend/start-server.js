@@ -22,7 +22,7 @@ try {
       
       // Start the actual server using ts-node
       const { spawn } = require('child_process');
-      const server = spawn('npx', ['ts-node', 'src/index.ts'], { 
+      const server = spawn('npx', ['ts-node', 'api/index.ts'], { 
         stdio: 'inherit',
         shell: true 
       });

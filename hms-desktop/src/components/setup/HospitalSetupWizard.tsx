@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import configService from '../../lib/api/services/configService';
 import { CURRENCIES, TIMEZONES } from '../../lib/utils/currencyAndTimezone';
+import { autoSelectIfZero, autoSelectIfZeroMouseDown } from '../../lib/utils/numberInput';
 
 const HospitalSetupWizard = ({ onComplete }) => {
   const [formData, setFormData] = useState({
@@ -17,7 +18,7 @@ const HospitalSetupWizard = ({ onComplete }) => {
     hospitalLicenseNumber: '',
     timezone: 'UTC',
     defaultLanguage: 'en',
-    currency: 'USD',
+    currency: 'INR',
     taxRate: 0,
     medicineMarkupPercentage: 0,
     appointmentSlotDuration: 30,
@@ -41,6 +42,29 @@ const HospitalSetupWizard = ({ onComplete }) => {
   const [error, setError] = useState('');
   const [logoFile, setLogoFile] = useState(null);
 
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : (type === 'number' ? (value === '' ? '' : Number(value)) : value)
+    }));
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File size must be less than 5MB');
+      return;
+    }
+    setLogoFile(file);
+    setError('');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -54,20 +78,6 @@ const HospitalSetupWizard = ({ onComplete }) => {
       setError(err.response?.data?.message || 'Failed to setup hospital profile');
     } finally {
       setLoading(false);
-    }
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        setError('Please select a valid image file');
-        return;
-      }
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setError('File size must be less than 5MB');
-        return;
-      }
-      setLogoFile(file);
-      setError('');
     }
   };
 
@@ -517,6 +527,8 @@ const HospitalSetupWizard = ({ onComplete }) => {
                 name: 'taxRate',
                 value: formData.taxRate,
                 onChange: handleInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 min: 0,
                 max: 100,
                 step: 0.01,
@@ -540,6 +552,8 @@ const HospitalSetupWizard = ({ onComplete }) => {
                 name: 'medicineMarkupPercentage',
                 value: formData.medicineMarkupPercentage,
                 onChange: handleInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 min: 0,
                 max: 1000,
                 step: 0.1,
@@ -570,6 +584,8 @@ const HospitalSetupWizard = ({ onComplete }) => {
                 name: 'appointmentSlotDuration',
                 value: formData.appointmentSlotDuration,
                 onChange: handleInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 min: 10,
                 max: 120,
                 step: 5,
@@ -593,6 +609,8 @@ const HospitalSetupWizard = ({ onComplete }) => {
                 name: 'defaultDoctorConsultationDuration',
                 value: formData.defaultDoctorConsultationDuration,
                 onChange: handleInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 min: 10,
                 max: 120,
                 step: 5,

@@ -48,6 +48,14 @@ model User {
   medicineOrders        MedicineOrder[]
   technicianSelections  TechnicianTestSelection[]
 
+  // OT Relations
+  surgeriesAsSurgeon   Surgery[]       @relation("SurgeonSurgeries")
+  surgeryTeamMembers   SurgeryTeam[]
+
+  // Finance relations
+  expensesCreated Expense[] @relation("ExpenseCreatedBy")
+  expenses       Expense[] @relation("ExpenseUser")
+
   @@map("users")
 }
 
@@ -68,14 +76,14 @@ model DiagnosisCatalog {
 
 // B. Allergy Catalog
 model AllergyCatalog {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  name      String
-  category  String // Food, Drug, Environmental, etc.
-  severity  String // Mild, Moderate, Severe
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  category    String // Food, Drug, Environmental, etc.
+  description String?  // Optional clinical note or explanation
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relations
   patientAllergies PatientAllergy[]
@@ -103,13 +111,15 @@ model PatientAllergy {
 
 // C. Chronic Condition Catalog
 model ChronicConditionCatalog {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  name      String
-  category  String // Cardiovascular, Endocrine, etc.
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  category    String // Cardiovascular, Endocrine, Renal, Mental health, etc.
+  icdCode     String?  @map("icd_code") // ICD-10 code for insurance/reporting
+  description String?  // Optional clinical note or explanation
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relations
   patientConditions PatientChronicCondition[]
@@ -166,19 +176,25 @@ model MedicineCatalog {
 }
 
 // 2. Patients table - Patient information and medical profile
+// id = human-readable: normalized name + "_" + last 4 of Aadhar (12 digits) or Passport (e.g. suryansh_puri_5849)
 model Patient {
-  id                    String      @id @default(cuid())
+  id                    String      @id // No default: set explicitly on create (name_last4 format)
   name                  String
   dateOfBirth           DateTime    @map("date_of_birth")
   gender                Gender
   phone                 String      @unique
+  aadharCardNumber      String?     @unique @map("aadhar_card_number") // Indian patients: 12-digit Aadhar
+  passportNumber        String?     @unique @map("passport_number") // Foreign patients: passport number
   address               String
   bloodGroup            String?     @map("blood_group")
   allergies             String? // Keep for backward compatibility
   chronicConditions     String?     @map("chronic_conditions") // Keep for backward compatibility
   emergencyContactName  String?     @map("emergency_contact_name")
   emergencyContactPhone String?     @map("emergency_contact_phone")
+  referredBy            String?     @map("referred_by") // Free text: name of person who referred this patient
   patientType           PatientType @default(OUTPATIENT) @map("patient_type")
+  patientNumber         String?     @unique @map("patient_number") // Deprecated: will be removed; use id for display
+  oldId                 String?     @map("old_id") // Former CUID (for rollback); optional
   createdAt             DateTime    @default(now()) @map("created_at")
   updatedAt             DateTime    @updatedAt @map("updated_at")
 
@@ -195,6 +211,9 @@ model Patient {
   // NEW: Catalog-based relations
   structuredAllergies  PatientAllergy[]
   structuredConditions PatientChronicCondition[]
+
+  // OT
+  surgeries Surgery[]
 
   @@map("patients")
 }
@@ -215,6 +234,7 @@ model Appointment {
   doctor        User           @relation("DoctorAppointments", fields: [doctorId], references: [id])
   consultations Consultation[]
   prescriptions Prescription[]
+  labTests      LabTest[]
 
   @@map("appointments")
 }
@@ -234,6 +254,8 @@ model Consultation {
   consultationDate DateTime  @default(now()) @map("consultation_date")
   // Financial
   fee              Decimal   @default(0) @db.Decimal(10, 2) // Consultation fee in base currency
+  /// When set, OPD visit is on hold (e.g. waiting for lab); doctor resumes before prescription.
+  heldUntil        DateTime? @map("held_until")
   createdAt        DateTime  @default(now()) @map("created_at")
 
   // Relations
@@ -241,6 +263,7 @@ model Consultation {
   patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
   doctor        User           @relation("DoctorConsultations", fields: [doctorId], references: [id])
   prescriptions Prescription[]
+  labTests      LabTest[]
 
   @@map("consultations")
 }
@@ -331,16 +354,22 @@ model LabTest {
   reportFile       String?       @map("report_file") // PDF/image file path
   notes            String? // Additional notes from technician
   performedBy      String?       @map("performed_by") // Lab technician who performed the test
+  consultationId   String?         @map("consultation_id")
+  appointmentId    String?       @map("appointment_id")
   createdAt        DateTime      @default(now()) @map("created_at")
   completedAt      DateTime?     @map("completed_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")
 
   // Relations
-  patient         Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  orderedByUser   User        @relation("OrderedByUser", fields: [orderedBy], references: [id])
-  performedByUser User?       @relation("PerformedByUser", fields: [performedBy], references: [id])
-  testCatalog     TestCatalog @relation(fields: [testCatalogId], references: [id])
+  patient         Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  orderedByUser   User          @relation("OrderedByUser", fields: [orderedBy], references: [id])
+  performedByUser User?         @relation("PerformedByUser", fields: [performedBy], references: [id])
+  testCatalog     TestCatalog   @relation(fields: [testCatalogId], references: [id])
+  consultation    Consultation? @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+  appointment     Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
 
+  @@index([consultationId])
+  @@index([appointmentId])
   @@map("lab_tests")
 }
 
@@ -483,6 +512,7 @@ model Admission {
   vitalSigns       VitalSign[]
   nursingShifts    NursingShift[]
   dischargeSummary DischargeSummary?
+  surgeries        Surgery[]
 
   @@map("admissions")
 }
@@ -607,6 +637,153 @@ model DischargeSummary {
   @@map("discharge_summaries")
 }
 
+// ===== OT (OPERATION THEATRE) MODULES =====
+
+// Procedure Catalog - Surgery types for scheduling and reporting
+model ProcedureCatalog {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  name            String
+  category        String   // General Surgery, Orthopedic, Cardiac, etc.
+  defaultDuration Int?     @map("default_duration") // minutes
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  surgeries Surgery[]
+
+  @@map("procedure_catalog")
+}
+
+// Operation Theatre - OT room management
+model OperationTheatre {
+  id          String    @id @default(cuid())
+  name        String
+  hospitalId  String    @map("hospital_id")
+  type        String    // General Surgery, Orthopedic, Cardiac, etc.
+  location    String?
+  status      OTStatus  @default(AVAILABLE)
+  isActive    Boolean   @default(true) @map("is_active")
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  surgeries Surgery[]
+
+  @@unique([hospitalId, name])
+  @@map("operation_theatres")
+}
+
+// Surgery - Main surgical record
+model Surgery {
+  id               String         @id @default(cuid())
+  patientId        String         @map("patient_id")
+  admissionId      String?        @map("admission_id")
+  operationTheatreId String?      @map("operation_theatre_id")
+  procedureCatalogId String?     @map("procedure_catalog_id")
+  procedureName    String         @map("procedure_name") // Snapshot or free text
+  surgeonId        String         @map("surgeon_id")
+  scheduledAt      DateTime       @map("scheduled_at")
+  startTime        DateTime?      @map("start_time")
+  endTime          DateTime?      @map("end_time")
+  status           SurgeryStatus @default(SCHEDULED)
+  priority         SurgeryPriority @default(ELECTIVE)
+  notes            String?
+  anesthesiaType   String?        @map("anesthesia_type")
+  complications    String?
+  surgicalNotes    String?        @map("surgical_notes")
+  implantsUsed     String?        @map("implants_used")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  patient           Patient              @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  admission         Admission?           @relation(fields: [admissionId], references: [id], onDelete: SetNull)
+  operationTheatre  OperationTheatre?    @relation(fields: [operationTheatreId], references: [id], onDelete: SetNull)
+  procedureCatalog  ProcedureCatalog?    @relation(fields: [procedureCatalogId], references: [id], onDelete: SetNull)
+  surgeon           User                 @relation("SurgeonSurgeries", fields: [surgeonId], references: [id])
+  teamMembers       SurgeryTeam[]
+  preOpChecklist    PreOperativeChecklist?
+  postOpRecord      PostOperativeRecord?
+  inventoryUsage    OTInventoryUsage[]
+
+  @@map("surgeries")
+}
+
+// Surgery Team - Staff assigned to a surgery
+model SurgeryTeam {
+  id        String          @id @default(cuid())
+  surgeryId String          @map("surgery_id")
+  userId    String          @map("user_id")
+  role      SurgeryTeamRole
+  isLead    Boolean         @default(false) @map("is_lead")
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  // Relations
+  surgery Surgery @relation(fields: [surgeryId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([surgeryId, userId])
+  @@map("surgery_teams")
+}
+
+// Pre-Operative Checklist - One per surgery
+model PreOperativeChecklist {
+  id                   String   @id @default(cuid())
+  surgeryId            String   @unique @map("surgery_id")
+  consentSigned        Boolean  @default(false) @map("consent_signed")
+  labTestsCompleted    Boolean  @default(false) @map("lab_tests_completed")
+  anesthesiaClearance  Boolean  @default(false) @map("anesthesia_clearance")
+  bloodAvailable       Boolean  @default(false) @map("blood_available")
+  fastingConfirmed     Boolean  @default(false) @map("fasting_confirmed")
+  allergyReview       Boolean  @default(false) @map("allergy_review")
+  notes                String?
+  completedAt          DateTime? @map("completed_at")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  surgery Surgery @relation(fields: [surgeryId], references: [id], onDelete: Cascade)
+
+  @@map("pre_operative_checklists")
+}
+
+// Post-Operative Record - One per surgery
+model PostOperativeRecord {
+  id                    String   @id @default(cuid())
+  surgeryId             String   @unique @map("surgery_id")
+  recoveryNotes         String?  @map("recovery_notes")
+  complications         String?
+  dischargeInstructions String? @map("discharge_instructions")
+  painLevel             Int?    @map("pain_level") // 1-10
+  recordedAt            DateTime @default(now()) @map("recorded_at")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  surgery Surgery @relation(fields: [surgeryId], references: [id], onDelete: Cascade)
+
+  @@map("post_operative_records")
+}
+
+// OT Inventory Usage - Items consumed during surgery
+model OTInventoryUsage {
+  id        String   @id @default(cuid())
+  surgeryId String   @map("surgery_id")
+  itemName  String   @map("item_name")
+  quantity  Int      @default(1)
+  unit      String?  // e.g. "pieces", "ml", "pack"
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  surgery Surgery @relation(fields: [surgeryId], references: [id], onDelete: Cascade)
+
+  @@map("ot_inventory_usage")
+}
+
 // ===== PHASE 2: HOSPITAL CONFIGURATION =====
 
 // Hospital Configuration - Settings per hospital
@@ -639,8 +816,8 @@ model HospitalConfig {
   // Operational Settings
   timezone        String   @default("UTC")
   defaultLanguage String   @default("en") @map("default_language")
-  currency        String   @default("USD") // Base currency for storing prices
-  displayCurrency String?  @map("display_currency") // Display currency for UI (if different from base currency)
+  currency        String   @default("INR") // Application uses INR only
+  displayCurrency String?  @default("INR") @map("display_currency") // Application uses INR only
   taxRate         Decimal? @map("tax_rate") @db.Decimal(5, 2)
 
   // Appointment Settings
@@ -862,6 +1039,34 @@ model LowStockAlert {
   @@map("low_stock_alerts")
 }
 
+// ===== FINANCE / EXPENSE TRACKING =====
+model Expense {
+  id            String          @id @default(cuid())
+  category      ExpenseCategory
+  description   String
+  amount        Decimal         @db.Decimal(10, 2)
+  expenseDate   DateTime        @default(now()) @map("expense_date")
+  paymentStatus PaymentStatus   @default(PENDING) @map("payment_status")
+  paidAt        DateTime?       @map("paid_at")
+
+  // Optional link for salary expenses
+  userId String? @map("user_id")
+  user   User?   @relation("ExpenseUser", fields: [userId], references: [id])
+
+  // Audit
+  createdBy String @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  createdByUser User @relation("ExpenseCreatedBy", fields: [createdBy], references: [id])
+
+  @@index([expenseDate])
+  @@index([category])
+  @@index([paymentStatus])
+  @@index([userId])
+  @@map("expenses")
+}
+
 // Enums
 enum UserRole {
   ADMIN
@@ -918,6 +1123,16 @@ enum PaymentStatus {
   PARTIAL
   REFUNDED
   CANCELLED
+}
+
+enum ExpenseCategory {
+  SALARY
+  ELECTRICITY
+  RENT
+  MAINTENANCE
+  EQUIPMENT
+  SUPPLIES
+  OTHER
 }
 
 // IPD-specific enums
@@ -978,4 +1193,35 @@ enum OrderStatus {
   SHIPPED
   DELIVERED
   CANCELLED
+}
+
+// OT enums
+enum OTStatus {
+  AVAILABLE
+  OCCUPIED
+  MAINTENANCE
+  CLEANING
+}
+
+enum SurgeryStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  POSTPONED
+}
+
+enum SurgeryPriority {
+  ELECTIVE
+  URGENT
+  EMERGENCY
+}
+
+enum SurgeryTeamRole {
+  SURGEON
+  ASSISTANT_SURGEON
+  ANESTHESIOLOGIST
+  SCRUB_NURSE
+  CIRCULATING_NURSE
+  TECHNICIAN
 }

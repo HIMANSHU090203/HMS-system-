@@ -7,6 +7,7 @@ import { getInfoContent } from '../../lib/infoContent';
 import LabTestPDFGenerator from '../../lib/utils/labTestPDFGenerator';
 import { useHospitalConfig } from '../../lib/contexts/HospitalConfigContext';
 import { formatCurrencySync, getCurrencySymbol } from '../../lib/utils/currencyAndTimezone';
+import { autoSelectIfZero, autoSelectIfZeroMouseDown } from '../../lib/utils/numberInput';
 
 const LabTestManagement = ({ user, isAuthenticated, onBack }) => {
   const { formatCurrency, displayCurrency } = useHospitalConfig();
@@ -25,6 +26,9 @@ const LabTestManagement = ({ user, isAuthenticated, onBack }) => {
   const [totalPages, setTotalPages] = useState(1);
   const [activeTab, setActiveTab] = useState('tests');
   const [stats, setStats] = useState(null);
+  const [selectedDoctorForHistory, setSelectedDoctorForHistory] = useState(null);
+  const [doctorHistoryTests, setDoctorHistoryTests] = useState([]);
+  const [doctorHistoryLoading, setDoctorHistoryLoading] = useState(false);
   const [showTechSelection, setShowTechSelection] = useState(false);
   const [selectedTechTests, setSelectedTechTests] = useState([]);
   const [availableTests, setAvailableTests] = useState([]);
@@ -197,6 +201,20 @@ const LabTestManagement = ({ user, isAuthenticated, onBack }) => {
       setError('Failed to load data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadDoctorHistory = async (doctorId) => {
+    setDoctorHistoryLoading(true);
+    setDoctorHistoryTests([]);
+    try {
+      const res = await labTestService.getLabTestsByDoctor(doctorId);
+      setDoctorHistoryTests(res?.labTests || []);
+    } catch (e) {
+      console.error('Error loading doctor history:', e);
+      setDoctorHistoryTests([]);
+    } finally {
+      setDoctorHistoryLoading(false);
     }
   };
 
@@ -1104,6 +1122,8 @@ const LabTestManagement = ({ user, isAuthenticated, onBack }) => {
                       step: '0.01',
                       value: priceEdits[test.id] !== undefined ? priceEdits[test.id] : (test.price || 0),
                       onChange: (e) => setPriceEdits({ ...priceEdits, [test.id]: e.target.value }),
+                      onFocus: autoSelectIfZero,
+                      onMouseDown: autoSelectIfZeroMouseDown,
                       style: {
                         width: '120px',
                         padding: '6px 10px',
@@ -1372,8 +1392,114 @@ const LabTestManagement = ({ user, isAuthenticated, onBack }) => {
   };
 
   const renderStatsTab = () => {
-    if (!stats) return React.createElement('div', null, 'Loading statistics...');
+    if (!stats && !selectedDoctorForHistory) return React.createElement('div', null, 'Loading statistics...');
 
+    // History view when a doctor is selected
+    if (selectedDoctorForHistory) {
+      return React.createElement(
+        'div',
+        null,
+        React.createElement(
+          'div',
+          { style: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' } },
+          React.createElement(
+            'button',
+            {
+              type: 'button',
+              onClick: () => {
+                setSelectedDoctorForHistory(null);
+                setDoctorHistoryTests([]);
+              },
+              style: {
+                padding: '8px 12px',
+                fontSize: '14px',
+                backgroundColor: '#F3F4F6',
+                border: '1px solid #D1D5DB',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }
+            },
+            'Back'
+          ),
+          React.createElement(
+            'h3',
+            { style: { fontSize: '18px', fontWeight: '600', margin: 0, color: '#111827' } },
+            `History for ${selectedDoctorForHistory.name}`
+          )
+        ),
+        React.createElement(
+          'div',
+          { className: 'overflow-x-auto' },
+          React.createElement(
+            'table',
+            { className: 'min-w-full divide-y divide-gray-200' },
+            React.createElement(
+              'thead',
+              { className: 'bg-gray-50' },
+              React.createElement(
+                'tr',
+                null,
+                React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Patient'),
+                React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Test'),
+                React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Status'),
+                React.createElement('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Date')
+              )
+            ),
+            React.createElement(
+              'tbody',
+              { className: 'bg-white divide-y divide-gray-200' },
+              doctorHistoryLoading ? React.createElement(
+                'tr',
+                null,
+                React.createElement('td', { colSpan: 4, className: 'px-6 py-4 text-center text-gray-500' }, 'Loading...')
+              ) : doctorHistoryTests.length === 0 ? React.createElement(
+                'tr',
+                null,
+                React.createElement('td', { colSpan: 4, className: 'px-6 py-4 text-center text-gray-500' }, 'No tests ordered by this doctor.')
+              ) : doctorHistoryTests.map(test =>
+                React.createElement(
+                  'tr',
+                  { key: test.id, className: 'hover:bg-gray-50' },
+                  React.createElement(
+                    'td',
+                    { className: 'px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900' },
+                    test.patient?.name || patients.find(p => p.id === test.patientId)?.name || 'Unknown'
+                  ),
+                  React.createElement(
+                    'td',
+                    { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' },
+                    test.testNameSnapshot || test.testCatalog?.testName || 'Unknown'
+                  ),
+                  React.createElement(
+                    'td',
+                    { className: 'px-6 py-4 whitespace-nowrap' },
+                    React.createElement(
+                      'span',
+                      {
+                        className: `px-2 py-1 text-xs font-semibold rounded-full ${
+                          test.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                          test.status === 'IN_PROGRESS' ? 'bg-yellow-100 text-yellow-800' :
+                          test.status === 'PENDING' ? 'bg-blue-100 text-blue-800' :
+                          'bg-red-100 text-red-800'
+                        }`
+                      },
+                      test.status
+                    )
+                  ),
+                  React.createElement(
+                    'td',
+                    { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' },
+                    new Date(test.createdAt).toLocaleDateString()
+                  )
+                )
+              )
+            )
+          )
+        )
+      );
+    }
+
+    // Main stats view: total, recent, tests by doctor
     return React.createElement(
       'div',
       null,
@@ -1384,18 +1510,63 @@ const LabTestManagement = ({ user, isAuthenticated, onBack }) => {
       ),
       React.createElement(
         'div',
-        { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' } },
+        { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' } },
         React.createElement(
           'div',
           { style: { backgroundColor: '#FFFFFF', padding: '16px', borderRadius: '8px', border: '1px solid #E5E7EB' } },
           React.createElement('h4', { style: { fontSize: '14px', fontWeight: '500', color: '#6B7280', margin: '0 0 8px 0' } }, 'Total Tests'),
-          React.createElement('p', { style: { fontSize: '24px', fontWeight: '600', color: '#111827', margin: 0 } }, stats.totalLabTests || 0)
+          React.createElement('p', { style: { fontSize: '24px', fontWeight: '600', color: '#111827', margin: 0 } }, stats?.totalLabTests ?? 0)
         ),
         React.createElement(
           'div',
           { style: { backgroundColor: '#FFFFFF', padding: '16px', borderRadius: '8px', border: '1px solid #E5E7EB' } },
           React.createElement('h4', { style: { fontSize: '14px', fontWeight: '500', color: '#6B7280', margin: '0 0 8px 0' } }, 'Recent Tests'),
-          React.createElement('p', { style: { fontSize: '24px', fontWeight: '600', color: '#111827', margin: 0 } }, stats.recentLabTests || 0)
+          React.createElement('p', { style: { fontSize: '24px', fontWeight: '600', color: '#111827', margin: 0 } }, stats?.recentLabTests ?? 0)
+        )
+      ),
+      stats?.labTestsByDoctor?.length > 0 && React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(
+          'h4',
+          { style: { fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#374151' } },
+          'Tests by doctor'
+        ),
+        React.createElement(
+          'div',
+          { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px' } },
+          stats.labTestsByDoctor.map(doc =>
+            React.createElement(
+              'button',
+              {
+                key: doc.orderedBy,
+                type: 'button',
+                onClick: () => {
+                  setSelectedDoctorForHistory({ id: doc.orderedBy, name: doc.doctorName });
+                  loadDoctorHistory(doc.orderedBy);
+                },
+                style: {
+                  backgroundColor: '#FFFFFF',
+                  padding: '16px',
+                  borderRadius: '8px',
+                  border: '1px solid #E5E7EB',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'border-color 0.2s, box-shadow 0.2s'
+                },
+                onMouseEnter: (e) => {
+                  e.currentTarget.style.borderColor = '#3B82F6';
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(59, 130, 246, 0.15)';
+                },
+                onMouseLeave: (e) => {
+                  e.currentTarget.style.borderColor = '#E5E7EB';
+                  e.currentTarget.style.boxShadow = 'none';
+                }
+              },
+              React.createElement('div', { style: { fontSize: '14px', fontWeight: '600', color: '#111827', marginBottom: '4px' } }, doc.doctorName || 'Unknown'),
+              React.createElement('div', { style: { fontSize: '20px', fontWeight: '600', color: '#3B82F6' } }, doc.count)
+            )
+          )
         )
       )
     );
@@ -2027,6 +2198,8 @@ const LabTestManagement = ({ user, isAuthenticated, onBack }) => {
                               setTechPriceEdits({ ...techPriceEdits, [test.id]: e.target.value });
                             }
                           },
+                          onFocus: autoSelectIfZero,
+                          onMouseDown: autoSelectIfZeroMouseDown,
                           onBlur: (e) => {
                             const price = parseFloat(e.target.value);
                             // Validate: must be a valid number >= 0

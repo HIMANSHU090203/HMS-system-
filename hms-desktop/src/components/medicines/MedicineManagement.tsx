@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import medicineService from '../../lib/api/services/medicineService';
 import InfoButton from '../common/InfoButton';
 import { getInfoContent } from '../../lib/infoContent';
@@ -6,73 +6,12 @@ import OrderManagement from './OrderManagement';
 import ImportCatalogWizard from './ImportCatalogWizard';
 import { useHospitalConfig } from '../../lib/contexts/HospitalConfigContext';
 import { formatCurrencySync } from '../../lib/utils/currencyAndTimezone';
+import { autoSelectIfZero, autoSelectIfZeroMouseDown } from '../../lib/utils/numberInput';
 
 const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
-  const configContext = useHospitalConfig();
-  const { formatCurrency, formatCurrencyWithConversion, baseCurrency, displayCurrency, convertCurrency, config, refreshConfig } = configContext;
-  
-  // CRITICAL: Use a state variable to track the displayCurrency so it updates when config changes
-  const [currentDisplayCurrency, setCurrentDisplayCurrency] = React.useState<string>(() => {
-    const configDisplayCurrency = config?.displayCurrency 
-      ? (typeof config.displayCurrency === 'string' ? config.displayCurrency.trim().toUpperCase() : null)
-      : null;
-    return configDisplayCurrency || displayCurrency || 'USD';
-  });
-  
-  // Use a ref to track if we've directly fetched a currency value to prevent overwriting
-  const directlyFetchedCurrencyRef = React.useRef<string | null>(null);
-  
-  // Update currentDisplayCurrency whenever config.displayCurrency changes
-  // BUT: Only update if we haven't directly fetched a different value
-  React.useEffect(() => {
-    // Prioritize config.displayCurrency (source of truth from database)
-    const configDisplayCurrency = config?.displayCurrency 
-      ? (typeof config.displayCurrency === 'string' ? config.displayCurrency.trim().toUpperCase() : null)
-      : null;
-    
-    // If we have a directly fetched currency, check if context has caught up
-    if (directlyFetchedCurrencyRef.current) {
-      // If config now matches our directly fetched value, context has caught up - clear the ref
-      if (configDisplayCurrency === directlyFetchedCurrencyRef.current) {
-        console.log('[MedicineManagement] ✅ Context has caught up with directly fetched currency:', directlyFetchedCurrencyRef.current);
-        directlyFetchedCurrencyRef.current = null;
-      } else {
-        // Context hasn't caught up yet - keep using the directly fetched value
-        // Only update if currentDisplayCurrency doesn't match the directly fetched value
-        if (currentDisplayCurrency !== directlyFetchedCurrencyRef.current) {
-          console.log('[MedicineManagement] 🔒 Keeping directly fetched currency:', directlyFetchedCurrencyRef.current, '(context still has:', configDisplayCurrency || displayCurrency, ')');
-          setCurrentDisplayCurrency(directlyFetchedCurrencyRef.current);
-        }
-        return; // Don't proceed with context-based update
-      }
-    }
-    
-    // Only use context displayCurrency as fallback if config doesn't have it
-    // This ensures we always use the database value when available
-    const newDisplayCurrency = configDisplayCurrency || displayCurrency || 'USD';
-    
-    if (newDisplayCurrency !== currentDisplayCurrency) {
-      console.log('[MedicineManagement] 🔄 Updating currentDisplayCurrency from', currentDisplayCurrency, 'to', newDisplayCurrency, {
-        source: configDisplayCurrency ? 'config.displayCurrency' : 'context.displayCurrency',
-        directlyFetched: directlyFetchedCurrencyRef.current
-      });
-      setCurrentDisplayCurrency(newDisplayCurrency);
-    }
-  }, [config?.displayCurrency, displayCurrency, currentDisplayCurrency]);
-  
-  // Use currentDisplayCurrency for formatting
-  const finalDisplayCurrency = currentDisplayCurrency;
-  
-  console.log('[MedicineManagement] 🔍 Currency resolution:', {
-    configDisplayCurrency: config?.displayCurrency,
-    contextDisplayCurrency: displayCurrency,
-    currentDisplayCurrency,
-    finalDisplayCurrency,
-    willUse: finalDisplayCurrency,
-    configExists: !!config
-  });
-  
-  const [convertedPrices, setConvertedPrices] = React.useState<Record<string, number>>({});
+  const { formatCurrency, config, displayCurrency, baseCurrency, refreshConfig } = useHospitalConfig();
+  const directlyFetchedCurrencyRef = useRef(null);
+  const [currentDisplayCurrency, setCurrentDisplayCurrency] = useState(null);
   
   // CRITICAL: Force reload config from database when component mounts
   React.useEffect(() => {
@@ -204,16 +143,16 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
       currenciesMatch: baseCurrency === displayCurrency,
       shouldConvert: baseCurrency !== displayCurrency && !!baseCurrency && !!displayCurrency,
       timestamp: new Date().toISOString(),
-      configDisplayCurrency: configContext?.config?.displayCurrency,
-      contextBaseCurrency: configContext?.baseCurrency,
-      contextDisplayCurrency: configContext?.displayCurrency
+      configDisplayCurrency: config?.displayCurrency,
+      contextBaseCurrency: baseCurrency,
+      contextDisplayCurrency: displayCurrency
     });
     
     // If displayCurrency changed, force a re-conversion of prices
     if (baseCurrency && displayCurrency && baseCurrency !== displayCurrency) {
       console.log('[MedicineManagement] 💡 Display currency changed - prices will be converted');
     }
-  }, [baseCurrency, displayCurrency, configContext?.config?.displayCurrency, configContext?.baseCurrency, configContext?.displayCurrency]);
+  }, [baseCurrency, displayCurrency, config?.displayCurrency]);
   
   // Also listen for when displayCurrency changes in context (moved after medicines declaration)
   React.useEffect(() => {
@@ -227,6 +166,7 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
   }, [displayCurrency, medicines.length]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [inventorySyncBanner, setInventorySyncBanner] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
@@ -293,99 +233,7 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
     }
   }, [transactionsPage]);
 
-  // Use ref to store convertCurrency function to avoid dependency issues
-  const convertCurrencyRef = React.useRef(convertCurrency);
-  React.useEffect(() => {
-    convertCurrencyRef.current = convertCurrency;
-  }, [convertCurrency]);
-  
-  // Convert prices when medicines or currency changes
-  // Use useMemo to create stable references for medicines array
-  const medicinesKey = React.useMemo(() => 
-    medicines.map(m => `${m.id}:${m.price || m.sellingPrice || 0}`).join('|'), 
-    [medicines]
-  );
-  
-  useEffect(() => {
-    // Prevent infinite loops by checking if we actually need to convert
-    if (medicines.length === 0) {
-      setConvertedPrices({});
-      return;
-    }
-    
-    // CRITICAL: Use finalDisplayCurrency (from config) instead of displayCurrency (from context)
-    const currencyToUse = finalDisplayCurrency || displayCurrency;
-    
-    // Check if currencies are valid first
-    if (!baseCurrency || !currencyToUse) {
-      console.warn('[Currency Conversion] Missing currency info. Base:', baseCurrency, 'Display:', currencyToUse);
-      const originalPrices: Record<string, number> = {};
-      medicines.forEach(medicine => {
-        const price = parseFloat(medicine.price || medicine.sellingPrice || 0);
-        originalPrices[medicine.id] = price;
-      });
-      setConvertedPrices(originalPrices);
-      return;
-    }
-    
-    // Normalize currencies to uppercase for comparison
-    const normalizedBase = baseCurrency.toUpperCase();
-    const normalizedDisplay = currencyToUse.toUpperCase();
-    
-    // If currencies are the same, use original prices (no conversion needed)
-    if (normalizedBase === normalizedDisplay) {
-      console.log(`[Currency Conversion] Currencies are the same (${normalizedBase}), using original prices without conversion`);
-      const originalPrices: Record<string, number> = {};
-      medicines.forEach(medicine => {
-        const price = parseFloat(medicine.price || medicine.sellingPrice || 0);
-        originalPrices[medicine.id] = price;
-      });
-      setConvertedPrices(originalPrices);
-      return;
-    }
-    
-    // Currencies are different - perform conversion
-    const convertAllPrices = async () => {
-      console.log(`[Currency Conversion] Starting conversion. Base: ${normalizedBase}, Display: ${normalizedDisplay}, Medicines: ${medicines.length}`);
-      const newConvertedPrices: Record<string, number> = {};
-      
-      // Convert all prices in parallel for better performance
-      const conversionPromises = medicines.map(async (medicine) => {
-        const price = parseFloat(medicine.price || medicine.sellingPrice || 0);
-        if (price > 0) {
-          try {
-            // Use ref to get latest convertCurrency function
-            const converted = await convertCurrencyRef.current(price);
-            
-            if (converted !== null && !isNaN(converted) && converted >= 0) {
-              // Always use converted value if it's valid
-              newConvertedPrices[medicine.id] = converted;
-              if (Math.abs(converted - price) > 0.01) {
-                console.log(`[Currency Conversion] ✓ ${medicine.name}: ${price} ${normalizedBase} → ${converted.toFixed(2)} ${normalizedDisplay}`);
-              }
-            } else {
-              console.warn(`[Currency Conversion] ✗ Invalid conversion result for ${medicine.name}, using original price`);
-              newConvertedPrices[medicine.id] = price;
-            }
-          } catch (error) {
-            console.error(`[Currency Conversion] ✗ Failed to convert price for medicine ${medicine.id} (${medicine.name}):`, error);
-            // Use original price if conversion fails
-            newConvertedPrices[medicine.id] = price;
-          }
-        } else {
-          newConvertedPrices[medicine.id] = 0;
-        }
-      });
-      
-      await Promise.all(conversionPromises);
-      setConvertedPrices(newConvertedPrices);
-      console.log(`[Currency Conversion] ✓ Complete. Converted ${Object.keys(newConvertedPrices).length} prices from ${normalizedBase} to ${normalizedDisplay}.`);
-    };
-    
-    convertAllPrices();
-    // Only depend on stable values - medicinesKey changes only when medicines actually change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [medicinesKey, baseCurrency, displayCurrency]);
+  // Application uses INR only - no currency conversion needed
 
   const loadMedicines = async () => {
     // Check authentication before making API call
@@ -532,11 +380,22 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
     e.preventDefault();
     if (!selectedMedicine) return;
 
+    const qty = parseInt(String(stockUpdateForm.quantity).trim(), 10);
+    if (!Number.isFinite(qty) || qty < 0 || !Number.isInteger(qty)) {
+      setError('Please enter a valid whole number (0 or greater).');
+      return;
+    }
+    if (stockUpdateForm.operation !== 'set' && qty < 1) {
+      setError('For Add or Subtract, enter a quantity of at least 1.');
+      return;
+    }
+
     setLoading(true);
+    setError('');
     try {
       const response = await medicineService.updateStock(selectedMedicine.id, {
         operation: stockUpdateForm.operation,
-        quantity: parseInt(stockUpdateForm.quantity),
+        quantity: qty,
         reason: stockUpdateForm.reason || undefined
       });
 
@@ -549,10 +408,17 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
         await loadMedicines();
         setError('');
       } else {
-        setError(response.message || 'Failed to update stock');
+        const zodDetail =
+          Array.isArray(response.errors) && response.errors.length > 0
+            ? response.errors.map((issue: { message?: string; path?: (string | number)[] }) =>
+                issue.path?.length ? `${issue.path.join('.')}: ${issue.message || ''}` : issue.message
+              ).join('; ')
+            : '';
+        setError(zodDetail ? `${response.message || 'Validation error'} — ${zodDetail}` : response.message || 'Failed to update stock');
       }
-    } catch (err) {
-      setError('Failed to update stock. Please try again.');
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message;
+      setError(msg ? String(msg) : 'Failed to update stock. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -598,21 +464,42 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
     e.preventDefault();
     if (!editingMedicine) return;
 
+    const priceNum = parseFloat(String(editFormData.price ?? '').replace(/,/g, ''));
+    const qtyNum = parseInt(String(editFormData.quantity ?? '').trim(), 10);
+    const thresholdNum = parseInt(String(editFormData.lowStockThreshold ?? '').trim(), 10);
+
+    if (!editFormData.name || !String(editFormData.name).trim()) {
+      setError('Medicine name is required.');
+      return;
+    }
+    if (!Number.isFinite(priceNum) || priceNum <= 0) {
+      setError('Price must be a number greater than zero.');
+      return;
+    }
+    if (!Number.isFinite(qtyNum) || qtyNum < 0 || !Number.isInteger(qtyNum)) {
+      setError('Stock quantity must be a whole number (0 or greater).');
+      return;
+    }
+    if (!Number.isFinite(thresholdNum) || thresholdNum < 0 || !Number.isInteger(thresholdNum)) {
+      setError('Low stock threshold must be a whole number (0 or greater).');
+      return;
+    }
+
     setLoading(true);
     setError('');
     try {
       const updateData = {
-        name: editFormData.name,
-        genericName: editFormData.genericName || null,
-        manufacturer: editFormData.manufacturer || null,
-        category: editFormData.category || 'General',
-        therapeuticClass: editFormData.therapeuticClass || null,
-        atcCode: editFormData.atcCode || null,
-        price: parseFloat(editFormData.price) || 0,
-        quantity: parseInt(editFormData.quantity) || 0,
-        lowStockThreshold: parseInt(editFormData.lowStockThreshold) || 10,
-        expiryDate: editFormData.expiryDate || null,
-        code: editFormData.code || null
+        name: String(editFormData.name).trim(),
+        genericName: editFormData.genericName?.trim() || undefined,
+        manufacturer: editFormData.manufacturer?.trim() || undefined,
+        category: editFormData.category?.trim() || 'General',
+        therapeuticClass: editFormData.therapeuticClass?.trim() || undefined,
+        atcCode: editFormData.atcCode?.trim() || undefined,
+        price: priceNum,
+        quantity: qtyNum,
+        lowStockThreshold: thresholdNum,
+        expiryDate: editFormData.expiryDate?.trim() || undefined,
+        code: editFormData.code?.trim() || undefined
       };
 
       const response = await medicineService.updateMedicine(editingMedicine.id, updateData);
@@ -624,10 +511,17 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
         await loadMedicines();
         setError('');
       } else {
-        setError(response.message || 'Failed to update medicine');
+        const zodDetail =
+          Array.isArray(response.errors) && response.errors.length > 0
+            ? response.errors.map((issue: { message?: string; path?: (string | number)[] }) =>
+                issue.path?.length ? `${issue.path.join('.')}: ${issue.message || ''}` : issue.message
+              ).join('; ')
+            : '';
+        setError(zodDetail ? `${response.message || 'Validation error'} — ${zodDetail}` : response.message || 'Failed to update medicine');
       }
-    } catch (err) {
-      setError('Failed to update medicine. Please try again.');
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message;
+      setError(msg ? String(msg) : 'Failed to update medicine. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -675,6 +569,14 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
       )
     );
   }
+
+  const finalDisplayCurrency =
+    (config?.displayCurrency && typeof config.displayCurrency === 'string'
+      ? config.displayCurrency.trim().toUpperCase()
+      : null) ||
+    currentDisplayCurrency ||
+    displayCurrency ||
+    'INR';
 
   return React.createElement(
     'div',
@@ -903,7 +805,7 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                     (() => {
                       const price = parseFloat(medicine.sellingPrice || medicine.price || 0);
                       // Use converted price if available, otherwise use original
-                      const displayPrice = convertedPrices[medicine.id] !== undefined ? convertedPrices[medicine.id] : price;
+                      const displayPrice = price; // Application uses INR only - no conversion needed
                       
                       // CRITICAL: Always format with the finalDisplayCurrency (from config) if available
                       // CRITICAL: Always use finalDisplayCurrency which reads directly from config.displayCurrency
@@ -916,14 +818,14 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                           medicineName: medicine.name,
                           originalPrice: price,
                           displayPrice,
-                          convertedPrice: convertedPrices[medicine.id],
+                          convertedPrice: price, // Application uses INR only
                           baseCurrency,
                           displayCurrency,
                           finalDisplayCurrency,
                           configDisplayCurrency: config?.displayCurrency,
                           currencyForFormatting,
                           willFormatWith: currencyForFormatting,
-                          hasConvertedPrice: convertedPrices[medicine.id] !== undefined,
+                          hasConvertedPrice: false, // Application uses INR only - no conversion
                           currenciesMatch: baseCurrency === currencyForFormatting
                         });
                       }
@@ -1139,6 +1041,8 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                   step: '0.01',
                   value: formData.price,
                   onChange: handleInputChange,
+                  onFocus: autoSelectIfZero,
+                  onMouseDown: autoSelectIfZeroMouseDown,
                   className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
                 })
               ),
@@ -1157,6 +1061,8 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                   min: '0',
                   value: formData.quantity,
                   onChange: handleInputChange,
+                  onFocus: autoSelectIfZero,
+                  onMouseDown: autoSelectIfZeroMouseDown,
                   className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
                 })
               ),
@@ -1175,6 +1081,8 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                   min: '0',
                   value: formData.lowStockThreshold,
                   onChange: handleInputChange,
+                  onFocus: autoSelectIfZero,
+                  onMouseDown: autoSelectIfZeroMouseDown,
                   className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
                 })
               )
@@ -1212,6 +1120,14 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
     activeTab === 'inventory' && React.createElement(
       'div',
       { className: 'space-y-6' },
+      inventorySyncBanner &&
+        React.createElement(
+          'div',
+          {
+            className: 'rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900 whitespace-pre-wrap',
+          },
+          inventorySyncBanner,
+        ),
       // Statistics Dashboard
       stats && React.createElement(
         'div',
@@ -1291,8 +1207,7 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                 React.createElement('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' }, 
                   (() => {
                     const price = parseFloat(medicine.price || 0);
-                    // Use converted price if available, otherwise use original
-                    const displayPrice = convertedPrices[medicine.id] !== undefined ? convertedPrices[medicine.id] : price;
+                    const displayPrice = price; // Application uses INR only - no conversion
                     return formatCurrency(displayPrice);
                   })()
                 ),
@@ -1336,7 +1251,7 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
             React.createElement(
               'p',
               { className: 'text-sm text-gray-500 mb-4' },
-              `Current Stock: ${selectedMedicine.quantity} | Threshold: ${selectedMedicine.lowStockThreshold}`
+              `Current stock: ${selectedMedicine.stockQuantity ?? selectedMedicine.quantity ?? 0} | Low-stock threshold: ${selectedMedicine.lowStockThreshold ?? 10}`
             ),
             React.createElement(
               'form',
@@ -1368,6 +1283,8 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                   name: 'quantity',
                   value: stockUpdateForm.quantity,
                   onChange: handleStockUpdateFormChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                   required: true,
                   min: '1',
                   className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500'
@@ -1497,9 +1414,9 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
         'div',
         { className: 'bg-white rounded-lg shadow p-6' },
         React.createElement('h3', { className: 'text-lg font-medium text-gray-900 mb-4' }, '⚡ Quick Actions'),
-        React.createElement(
-          'div',
-          { className: 'grid grid-cols-1 md:grid-cols-3 gap-4' },
+      React.createElement(
+        'div',
+        { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4' },
           React.createElement(
             'button',
             {
@@ -1509,6 +1426,46 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
             },
             React.createElement('span', { className: 'mr-2' }, '🔄'),
             loading ? 'Refreshing...' : 'Refresh Inventory'
+          ),
+          React.createElement(
+            'button',
+            {
+              onClick: async () => {
+                setLoading(true);
+                setError('');
+                setInventorySyncBanner('');
+                try {
+                  const res = await medicineService.reconcileDispensedStock();
+                  const parts = [res.message || 'Done'];
+                  const d = res.data;
+                  if (d?.applied?.length) {
+                    parts.push(
+                      `Adjusted: ${d.applied
+                        .map((a: { medicineName: string; unitsAdjusted: number }) => `${a.medicineName} (−${a.unitsAdjusted})`)
+                        .join(', ')}`,
+                    );
+                  }
+                  if (d?.warnings?.length) parts.push(`Warnings: ${d.warnings.join(' | ')}`);
+                  if (d?.errors?.length) parts.push(`Errors: ${d.errors.join(' | ')}`);
+                  const text = parts.join('\n\n');
+                  if (d?.errors?.length) {
+                    setError(text);
+                  } else {
+                    setInventorySyncBanner(text);
+                  }
+                  await loadInventoryData();
+                  await loadMedicines();
+                } catch (err: any) {
+                  setError(err.response?.data?.message || err.message || 'Reconciliation failed');
+                } finally {
+                  setLoading(false);
+                }
+              },
+              disabled: loading,
+              className: 'px-4 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 flex items-center justify-center text-left'
+            },
+            React.createElement('span', { className: 'mr-2 shrink-0' }, '📋'),
+            'Sync stock from dispensed prescriptions'
           ),
           React.createElement(
             'button',
@@ -1660,6 +1617,8 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                 name: 'price',
                 value: editFormData.price || 0,
                 onChange: handleEditInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 required: true,
                 min: 0,
                 step: '0.01',
@@ -1675,6 +1634,8 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                 name: 'quantity',
                 value: editFormData.quantity || 0,
                 onChange: handleEditInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 min: 0,
                 className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
               })
@@ -1688,6 +1649,8 @@ const MedicineManagement = ({ user, isAuthenticated, onBack }) => {
                 name: 'lowStockThreshold',
                 value: editFormData.lowStockThreshold || 10,
                 onChange: handleEditInputChange,
+                onFocus: autoSelectIfZero,
+                onMouseDown: autoSelectIfZeroMouseDown,
                 min: 0,
                 className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
               })

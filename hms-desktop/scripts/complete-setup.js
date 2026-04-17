@@ -130,7 +130,7 @@ async function setupCompleteSystem() {
     await runCommand('npm', ['run', 'prisma:seed'], backendDir, 'Database Seeding');
     
     console.log('🔧 Step 7: Adding sample users (doctors, staff)...');
-    await runCommand('node', ['src/scripts/addSampleUsers.js'], backendDir, 'Sample Users');
+    await runCommand('node', ['api/scripts/addSampleUsers.js'], backendDir, 'Sample Users');
     
     console.log('🔧 Step 8: Installing frontend dependencies...');
     await runCommand('npm', ['install'], path.join(__dirname, '..'), 'Frontend Dependencies');
@@ -185,7 +185,7 @@ async function setupCompleteSystem() {
     console.log('   npm run prisma:generate');
     console.log('   npm run prisma:migrate');
     console.log('   npm run prisma:seed');
-    console.log('   node src/scripts/addSampleUsers.js');
+    console.log('   node api/scripts/addSampleUsers.js');
     
     console.log('\n🆘 Common Issues:');
     console.log('• Database connection failed: Check PostgreSQL service');

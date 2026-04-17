@@ -4,6 +4,7 @@ import { CURRENCIES, TIMEZONES } from '../../lib/utils/currencyAndTimezone';
 import { useHospitalConfig } from '../../lib/contexts/HospitalConfigContext';
 import { HospitalConfig } from '../../types';
 import { config as envConfig } from '../../config/environment';
+import { autoSelectIfZero, autoSelectIfZeroMouseDown } from '../../lib/utils/numberInput';
 
 // Type for API response
 type ApiHospitalConfig = any;
@@ -28,6 +29,8 @@ const ConfigurationManagement: React.FC<ConfigurationManagementProps> = ({ user 
   const [uploadingLogo, setUploadingLogo] = useState<boolean>(false);
   const [logoJustUploaded, setLogoJustUploaded] = useState<boolean>(false);
   const [logoLoadAttempted, setLogoLoadAttempted] = useState<boolean>(false);
+  /** Display value for consultation fee so user can clear with backspace and we avoid leading zeros */
+  const [consultationFeeDisplay, setConsultationFeeDisplay] = useState<string>('');
 
   // Profile form data
   const [profileData, setProfileData] = useState({
@@ -168,6 +171,13 @@ const ConfigurationManagement: React.FC<ConfigurationManagementProps> = ({ user 
 
       setConfig(cfg as HospitalConfig);
 
+      const feeNum = (() => {
+        const v = cfg.defaultConsultationFee;
+        if (v === '' || v === null || v === undefined) return 0;
+        const n = Number(v);
+        return Number.isFinite(n) && n >= 0 ? n : 0;
+      })();
+
       // Load profile data
       setProfileData({
         hospitalName: cfg.hospitalName || '',
@@ -189,7 +199,7 @@ const ConfigurationManagement: React.FC<ConfigurationManagementProps> = ({ user 
         displayCurrency: cfg.displayCurrency || cfg.currency || 'INR',
         appointmentSlotDuration: cfg.appointmentSlotDuration || 30,
         defaultDoctorConsultationDuration: cfg.defaultDoctorConsultationDuration || 30,
-        defaultConsultationFee: cfg.defaultConsultationFee || 0,
+        defaultConsultationFee: feeNum,
         workingHours: (cfg.workingHours as any) || {
           workingDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
           startTime: '09:00',
@@ -203,6 +213,7 @@ const ConfigurationManagement: React.FC<ConfigurationManagementProps> = ({ user 
         prescriptionsEnabled: cfg.modulesEnabled?.prescriptions ?? true,
         pharmacyEnabled: cfg.modulesEnabled?.pharmacy ?? true,
       });
+      setConsultationFeeDisplay(feeNum === 0 ? '' : String(feeNum));
 
       // Load bank & invoice details from modulesEnabled.billingSettings.invoiceFooter
       const modulesEnabled = cfg.modulesEnabled as any;
@@ -436,8 +447,10 @@ const ConfigurationManagement: React.FC<ConfigurationManagementProps> = ({ user 
     } else if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
       setProfileData(prev => ({ ...prev, [name]: checked }));
-    } else if (type === 'number' && name === 'defaultConsultationFee') {
-      // Allow empty string for number inputs, convert to 0 when saving
+    } else if (name === 'defaultConsultationFee') {
+      // Handled by handleConsultationFeeChange (string display, allow empty, strip leading zeros)
+      return;
+    } else if (type === 'number') {
       const numValue = value === '' ? 0 : (isNaN(Number(value)) ? 0 : Number(value));
       setProfileData(prev => ({ ...prev, [name]: numValue }));
     } else {
@@ -448,6 +461,23 @@ const ConfigurationManagement: React.FC<ConfigurationManagementProps> = ({ user 
   const handleBankChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>): void => {
     const { name, value } = e.target;
     setBankData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleConsultationFeeChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const raw = e.target.value;
+    if (raw === '') {
+      setConsultationFeeDisplay('');
+      setProfileData(prev => ({ ...prev, defaultConsultationFee: 0 }));
+      return;
+    }
+    const allowed = raw.replace(/[^\d.]/g, '');
+    const parts = allowed.split('.');
+    const oneDecimal = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : allowed;
+    const stripped = oneDecimal.replace(/^0+(?=\d)/, '');
+    const display = stripped === '' ? '0' : stripped === '.' ? '0.' : stripped;
+    const num = parseFloat(display);
+    setConsultationFeeDisplay(display);
+    setProfileData(prev => ({ ...prev, defaultConsultationFee: Number.isFinite(num) && num >= 0 ? num : 0 }));
   };
 
 
@@ -487,6 +517,8 @@ const ConfigurationManagement: React.FC<ConfigurationManagementProps> = ({ user 
       // Ensure logoUrl is included in the payload - use the most recent value
       const payload = {
         ...baseProfileData,
+        currency: 'INR', // Application uses INR only
+        displayCurrency: 'INR', // Application uses INR only
         logoUrl: finalLogoUrl || baseProfileData.logoUrl || config?.logoUrl || '', // Ensure logoUrl is always included
         modulesEnabled: {
           ...(config?.modulesEnabled || {}),
@@ -1026,33 +1058,14 @@ const ConfigurationManagement: React.FC<ConfigurationManagementProps> = ({ user 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Base Currency (for storing prices)</label>
-                  <select
-                    name="currency"
-                    value={profileData.currency}
-                    onChange={handleProfileChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {CURRENCIES.map(curr => (
-                      <option key={curr.code} value={curr.code}>{curr.name} ({curr.symbol})</option>
-                    ))}
-                  </select>
-                  <p className="mt-1 text-xs text-gray-500">Prices are stored in this currency in the database</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Display Currency (for showing prices)</label>
-                  <select
-                    name="displayCurrency"
-                    value={profileData.displayCurrency}
-                    onChange={handleProfileChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {CURRENCIES.map(curr => (
-                      <option key={curr.code} value={curr.code}>{curr.name} ({curr.symbol})</option>
-                    ))}
-                  </select>
-                  <p className="mt-1 text-xs text-gray-500">Prices will be converted and displayed in this currency. Exchange rates update daily at midnight.</p>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Currency (Fixed to INR)</label>
+                  <input
+                    type="text"
+                    value="INR - Indian Rupee (₹)"
+                    disabled
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Application uses INR (Indian Rupee) only. Currency conversion is disabled.</p>
                 </div>
 
                 <div>
@@ -1062,6 +1075,8 @@ const ConfigurationManagement: React.FC<ConfigurationManagementProps> = ({ user 
                     name="appointmentSlotDuration"
                     value={profileData.appointmentSlotDuration}
                     onChange={handleProfileChange}
+                    onFocus={autoSelectIfZero}
+                    onMouseDown={autoSelectIfZeroMouseDown}
                     min="5"
                     max="120"
                     step="5"
@@ -1081,12 +1096,13 @@ const ConfigurationManagement: React.FC<ConfigurationManagementProps> = ({ user 
                     Default Consultation Fee <span className="text-blue-600 font-semibold">*</span> ({profileData.currency || 'USD'})
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     name="defaultConsultationFee"
-                    value={profileData.defaultConsultationFee || 0}
-                    onChange={handleProfileChange}
-                    min="0"
-                    step="0.01"
+                    value={consultationFeeDisplay}
+                    onChange={handleConsultationFeeChange}
+                    onFocus={autoSelectIfZero}
+                    onMouseDown={autoSelectIfZeroMouseDown}
                     placeholder="Enter consultation fee (e.g., 500.00)"
                     className="w-full px-4 py-2 border-2 border-blue-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-medium"
                   />
