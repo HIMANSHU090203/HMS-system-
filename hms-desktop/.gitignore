@@ -90,3 +90,7 @@ typings/
 
 # Electron-Forge
 out/
+.cursor/
+.dev-os/
+README_Agents.md
+
