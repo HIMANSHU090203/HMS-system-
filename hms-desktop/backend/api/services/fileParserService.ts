@@ -1,7 +1,8 @@
-import * as XLSX from 'xlsx';
-import * as pdfParse from 'pdf-parse';
-import mammoth from 'mammoth';
 import fs from 'fs';
+
+// Heavy parsers are lazy-loaded inside parse* methods so requiring medicine routes
+// at server startup does not load pdf-parse / mammoth / xlsx (avoids SIGBUS on some
+// EC2 + Node combinations until an import actually runs).
 
 export interface ParsedMedicine {
   name: string;
@@ -21,6 +22,8 @@ export interface ParsedMedicine {
 export class FileParserService {
   static async parseExcel(filePath: string): Promise<ParsedMedicine[]> {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const XLSX = require('xlsx') as typeof import('xlsx');
       const workbook = XLSX.readFile(filePath);
       
       if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
@@ -246,8 +249,10 @@ export class FileParserService {
   }
 
   static async parsePDF(filePath: string): Promise<ParsedMedicine[]> {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfParse = require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>;
     const dataBuffer = fs.readFileSync(filePath);
-    const data = await (pdfParse as any)(dataBuffer);
+    const data = await pdfParse(dataBuffer);
     
     const medicines: ParsedMedicine[] = [];
     const lines = data.text.split('\n').map((line: string) => line.trim()).filter((line: string) => line.length > 0);
@@ -463,6 +468,8 @@ export class FileParserService {
   }
 
   static async parseWord(filePath: string): Promise<ParsedMedicine[]> {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mammoth = require('mammoth') as typeof import('mammoth');
     const result = await mammoth.extractRawText({ path: filePath });
     const text = result.value;
     
