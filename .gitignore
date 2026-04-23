@@ -4,6 +4,7 @@ History of chatgpt chat.md
 HMS planning of the phase.md
 # Documentation (excluded from repository)
 docs/
+README_Agents.md
 
 # Environment Variables
 .env
@@ -26,6 +27,10 @@ out/
 # IDE and Editor files
 .vscode/
 .idea/
+
+# Cursor skills/rules and local session logs (not for GitHub)
+.cursor/
+.dev-os/
 *.swp
 *.swo
 *~
