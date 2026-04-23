@@ -152,32 +152,32 @@ const createWindow = () => {
     },
   });
 
-  // Set Content Security Policy
-  // More restrictive in production, more permissive in development
+  // Set Content Security Policy (injected on responses). Packaged app must allow
+  // connect-src to remote API (e.g. AWS EC2), not only file:// + localhost.
   const isDevelopment = process.env.NODE_ENV === 'development' || !app.isPackaged;
-  
+
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     let csp = '';
-    
+
     if (isDevelopment) {
-      // Development: Allow unsafe-eval for hot module replacement and development tools
+      // Development: HMR + devtools + Vite dev server + optional remote API (VITE_API_URL)
       csp = [
         "default-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* ws://localhost:* data: blob:;",
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:*;",
         "style-src 'self' 'unsafe-inline';",
         "img-src 'self' data: blob: http://localhost:*;",
         "font-src 'self' data:;",
-        "connect-src 'self' http://localhost:* ws://localhost:*;"
+        "connect-src 'self' http: https: ws: wss: http://localhost:* ws://localhost:*;",
       ].join(' ');
     } else {
-      // Production: More restrictive, no unsafe-eval
+      // Packaged: no unsafe-eval; allow axios/fetch to deployed http(s) API (tighten to host later)
       csp = [
         "default-src 'self' 'unsafe-inline' data: blob:;",
         "script-src 'self' 'unsafe-inline';",
         "style-src 'self' 'unsafe-inline';",
         "img-src 'self' data: blob:;",
         "font-src 'self' data:;",
-        "connect-src 'self' http://localhost:* ws://localhost:*;"
+        "connect-src 'self' http: https: ws: wss: http://localhost:* ws://localhost:*;",
       ].join(' ');
     }
     
@@ -254,22 +254,21 @@ const createWindow = () => {
     }
   });
 
-  // and load the index.html of the app.
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+  // Load renderer: Vite dev server when unpackaged + Forge URL; packaged uses built HTML.
+  const isPackaged = app.isPackaged;
+  if (!isPackaged && MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     desktopLogger.info('Loading from dev server:', MAIN_WINDOW_VITE_DEV_SERVER_URL);
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
-    
-    // DO NOT open DevTools automatically
-    // Users can open it manually with F12 or Ctrl+Shift+I if needed
-    desktopLogger.info('DevTools disabled by default. Press F12 or Ctrl+Shift+I to open.');
+  } else if (!isPackaged) {
+    const devUrl = 'http://localhost:5173';
+    desktopLogger.info('Loading from dev fallback:', devUrl);
+    mainWindow.loadURL(devUrl);
   } else {
     const htmlPath = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`);
     desktopLogger.info('Loading from file:', htmlPath);
     mainWindow.loadFile(htmlPath);
-    
-    // Don't open DevTools in production builds
-    desktopLogger.info('DevTools disabled by default. Press F12 or Ctrl+Shift+I to open.');
   }
+  desktopLogger.info('DevTools disabled by default. Press F12 or Ctrl+Shift+I to open.');
 };
 
 // Register global keyboard shortcuts (works even when window doesn't have focus)
