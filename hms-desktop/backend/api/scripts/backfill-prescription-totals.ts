@@ -26,7 +26,7 @@ async function main() {
   const dryRun = args.includes('--dry-run');
   const dispensedOnly = args.includes('--dispensed-only');
 
-  const where = dispensedOnly ? { status: PrescriptionStatus.DISPENSED as const } : {};
+  const where = dispensedOnly ? { status: PrescriptionStatus.DISPENSED } : {};
 
   const prescriptions = await prisma.prescription.findMany({
     where,
