@@ -19,7 +19,13 @@
     "prisma:seed": "ts-node prisma/seed.ts",
     "backfill:prescription-totals": "ts-node api/scripts/backfill-prescription-totals.ts",
     "lint": "eslint api/**/*.ts",
-    "lint:fix": "eslint api/**/*.ts --fix"
+    "lint:fix": "eslint api/**/*.ts --fix",
+    "pm2:start": "pm2 start ecosystem.config.cjs",
+    "pm2:reload": "pm2 reload ecosystem.config.cjs",
+    "pm2:stop": "pm2 stop zenhosp-api",
+    "pm2:delete": "pm2 delete zenhosp-api",
+    "pm2:status": "pm2 status",
+    "pm2:logs": "pm2 logs zenhosp-api --lines 100"
   },
   "keywords": [
     "hms",
