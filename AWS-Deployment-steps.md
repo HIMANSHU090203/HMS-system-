@@ -4,6 +4,12 @@ High-level architecture, gaps to implement for reliable multi-machine operation,
 
 **Scope:** This document aligns with the architecture discussed for ZenHosp / HMS: **RDS PostgreSQL** as system of record, **Node/Express API** on **EC2** (or similar), **Electron** clients on hospital PCs. Optional **SQLite + sync** is shown where it is **not yet implemented** in the codebase but is required for full offline resilience.
 
+### Related documentation (simple English + file paths)
+
+For a **step-by-step companion** aimed at the whole team (cloud + installer + offline roadmap, with **exact repo paths** like `hms-desktop/src/config/environment.ts`), see:
+
+**[`docs/Cloud-Installer-and-Offline-Sync-Guide.md`](docs/Cloud-Installer-and-Offline-Sync-Guide.md)**
+
 ---
 
 ## 1. Target architecture (high level)
@@ -66,9 +72,9 @@ These are the main **missing or incomplete** areas relative to the target archit
 
 | Area | Why it matters | Direction (no code here) |
 |------|----------------|-------------------------|
-| **Hosted API URL in production** | Packaged Electron must call AWS, not `localhost`. | Define **per-environment** API base URL (`VITE_API_URL` at build time and/or **runtime config** file beside the installer). |
+| **Hosted API URL in production** | Packaged Electron must call AWS, not `localhost`. | Define **per-environment** API base URL via **`VITE_API_URL`** (read in `hms-desktop/src/config/environment.ts`) at **build** time and/or **runtime config** (future: save URL from Electron main `userData`). |
 | **HTTPS + domain** | Browsers/Electron security, JWT over cleartext, compliance. | Terminate TLS on **Nginx** or **ALB**; use a real hostname (e.g. `api.hospital.example`). |
-| **CORS + CSP** | Remote API + Electron `connect-src` must allow your API origin. | Align **backend `CORS_ORIGIN`** and **Electron main-process CSP** with the deployed API URL. |
+| **CORS + CSP** | Remote API + Electron `connect-src` must allow your API origin. | Align **`CORS_ORIGIN`** in server `hms-desktop/backend/.env` (used by `hms-desktop/backend/api/index.ts`) and **Electron main-process CSP** in `hms-desktop/src/main.ts` (if you add CSP) with the deployed API URL. |
 | **Secrets & config** | No RDS password in the client; rotate keys. | **AWS Secrets Manager** or **SSM Parameter Store** on EC2; only server reads `DATABASE_URL` / `JWT_SECRET`. |
 | **SQLite + sync (optional but in architecture)** | Offline queues and local cache. | **better-sqlite3** (or equivalent), **outbox table**, **replay with auth**, **conflict/versioning**, **pull sync** API; treat SQLite as **never** source of truth. |
 | **Connectivity detection** | `navigator.onLine` is unreliable. | Combine with **ping `/health`** or lightweight authenticated endpoint. |
@@ -166,6 +172,8 @@ cd <repo>/hms-desktop/backend
 npm ci
 ```
 
+**Repository layout:** From the git clone root, the deployable API project is **`hms-desktop/backend/`** (Express entry: `hms-desktop/backend/api/index.ts`; Prisma schema and migrations: `hms-desktop/backend/prisma/`).
+
 ### Step 5.4 — Configure environment (server only)
 
 Create `.env` on the server (or inject via SSM/Secrets Manager) with at least:
@@ -186,15 +194,18 @@ npx prisma migrate deploy
 
 ### Step 5.6 — Build and run the API
 
+**Recommended (PM2 + repo config):** see **`docs/PM2-Backend-Service-Guide.md`** for exact directories, `ecosystem.config.cjs`, and verification commands.
+
 ```bash
 npm run build
-npm start
-# Or use PM2 for resilience:
+# First time on the VM:
 sudo npm install -g pm2
-pm2 start dist/index.js --name zenhosp-api
+pm2 start ecosystem.config.cjs
 pm2 save
 pm2 startup   # follow printed instructions so PM2 survives reboot
 ```
+
+Ad-hoc (no PM2): `npm start` runs `node dist/index.js` in the foreground only.
 
 ### Step 5.7 — Verify from your laptop
 
@@ -217,7 +228,7 @@ Expect JSON with `status: OK` (or equivalent from your `GET /health` handler).
 When the **missing pieces** you care about (HTTPS, CORS, runtime API URL, optional SQLite/sync) are implemented and merged:
 
 1. **Tag a release** in Git (e.g. `v1.0.0-aws`).
-2. **On EC2:** `git pull`, `npm ci`, `npx prisma migrate deploy`, `npm run build`, `pm2 restart zenhosp-api`.
+2. **On EC2** (from `hms-desktop/backend/`): `git pull`, `npm ci`, `npx prisma migrate deploy`, `npm run build`, `pm2 reload ecosystem.config.cjs` (or `npm run pm2:reload`).
 3. **Smoke tests** from a non-server machine:
    - `GET /health`
    - `POST /api/auth/login` (with test user)
@@ -238,32 +249,45 @@ When the **missing pieces** you care about (HTTPS, CORS, runtime API URL, option
 
 On your **build machine** (CI or developer PC):
 
-1. Set **`VITE_API_URL`** to the production URL **before** running the production build (Vite bakes `import.meta.env` at build time unless you add runtime config).
-2. From `hms-desktop`:
+1. Set **`VITE_API_URL`** to the production URL **before** running the production build. Vite bakes `import.meta.env` at build time unless you add runtime config. The client reads this in **`hms-desktop/src/config/environment.ts`** (`API_URL` must include the **`/api`** suffix, e.g. `https://api.yourhospital.com/api`).
+2. Working directory must be **`hms-desktop/`** (the folder that contains the desktop `package.json` and `forge.config.ts`).
 
-   ```bash
-   set VITE_API_URL=https://api.yourhospital.com/api   # Windows CMD example
+   **Windows CMD:**
+
+   ```cmd
+   cd hms-desktop
+   set VITE_API_URL=https://api.yourhospital.com/api
    npm run build
    ```
 
-   Or use a `.env.production` / CI secret store—follow your org’s secret handling.
+   **Windows PowerShell:**
 
-3. Confirm **Electron main process** CSP / `connect-src` allows that host if you restrict network access in production.
+   ```powershell
+   cd hms-desktop
+   $env:VITE_API_URL = "https://api.yourhospital.com/api"
+   npm run build
+   ```
+
+   **Optional:** create **`hms-desktop/.env.production`** with `VITE_API_URL=...` so CI does not rely on shell env vars.
+
+   Or use a CI secret store—follow your org’s secret handling (still no secrets in the client bundle except public URLs).
+
+3. Confirm **Electron main process** CSP / `connect-src` allows that host if you restrict network access in production (`hms-desktop/src/main.ts` when CSP is enabled).
 
 ### Step 7.3 — Produce the Windows installer
 
-From `hms-desktop` (Forge):
+From **`hms-desktop/`** (Electron Forge config: **`hms-desktop/forge.config.ts`**; makers include **Squirrel** for Windows):
 
 ```bash
 npm run make
 ```
 
-Collect the generated **Setup / Squirrel / MSI** artifacts from the `out/` directory (exact names depend on Forge makers).
+Collect artifacts under **`hms-desktop/out/`** (Forge output root). For Windows Squirrel builds, installers are commonly under a path like **`hms-desktop/out/make/squirrel.windows/x64/`** (exact subfolders can vary by Forge version—search `out/` for `Setup.exe` or `RELEASES` if unsure).
 
 ### Step 7.4 — Install on a hospital PC and validate
 
 1. Install the generated installer.
-2. Launch the app; ensure **first-run setup** (`/api/config/setup-status`) succeeds against the **remote** API (not localhost).
+2. Launch the app; ensure **first-run setup** succeeds against the **remote** API (not localhost). The React app checks setup via services that call the configured **`API_URL`** (see `hms-desktop/src/components/App.tsx` and `hms-desktop/src/lib/api/services/configService.ts`). Backend health is **`GET /health`** on the **same host and port as the API server**, without the `/api` prefix (handler in `hms-desktop/backend/api/index.ts`).
 3. **Login** with a user created on that server database.
 4. Run through **one write path** (e.g. create patient or prescription) and verify data in **RDS** (read-only query via bastion or admin tool).
 5. Test from **two PCs** if possible: same hospital, same API URL, same data visible.
@@ -303,6 +327,8 @@ Update this file when you change:
 - Hosting shape (e.g. move from EC2 to ECS),
 - How the Electron app resolves **API base URL**,
 - Whether **offline/SQLite** is in scope for v1 or deferred.
+
+Keep **`docs/Cloud-Installer-and-Offline-Sync-Guide.md`** in sync when you add **runtime API URL**, **SQLite paths**, or **sync** behavior so newcomers have one narrative.
 
 ---
 

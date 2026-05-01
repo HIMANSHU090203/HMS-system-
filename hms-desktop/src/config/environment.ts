@@ -1,7 +1,8 @@
 // Environment configuration
 export const config = {
   // API Configuration
-  API_URL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
+  // Base URL must end with /api (Express mounts REST under /api/...). Override with VITE_API_URL at build time.
+  API_URL: import.meta.env.VITE_API_URL || 'http://43.205.203.192:3000/api',
   
   // Application Configuration
   APP_NAME: import.meta.env.VITE_APP_NAME || 'HMS Desktop',
