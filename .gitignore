@@ -5,6 +5,7 @@ HMS planning of the phase.md
 # Documentation (excluded from repository)
 docs/
 README_Agents.md
+Gaps Needed to be Addressed.md
 
 # Environment Variables
 .env

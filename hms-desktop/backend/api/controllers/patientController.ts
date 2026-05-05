@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
 import { logAudit } from '../utils/auditLogger';
@@ -246,6 +246,18 @@ export const createPatient = async (req: AuthRequest, res: Response) => {
         success: false,
         message: 'Validation error',
         errors: error.issues,
+      });
+    }
+
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2011' &&
+      Array.isArray(error.meta?.constraint) &&
+      error.meta.constraint.includes('old_id')
+    ) {
+      return res.status(500).json({
+        success: false,
+        message: 'Database migration required: patients.old_id must be nullable before creating new patients.',
       });
     }
 

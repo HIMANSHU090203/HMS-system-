@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import userService from '../../lib/api/services/userService';
 import LoadingSpinner from '../common/LoadingSpinner';
 import { canManageUsers, getRoleDisplayInfo } from '../../lib/utils/rolePermissions';
@@ -6,29 +6,34 @@ import { UserRole } from '../../lib/api/types';
 import InfoButton from '../common/InfoButton';
 import { getInfoContent } from '../../lib/infoContent';
 
+const getInitialUserFormData = () => ({
+  username: '',
+  password: '',
+  fullName: '',
+  role: 'RECEPTIONIST',
+  email: '',
+  phone: '',
+  department: ''
+});
+
 const UserManagement = ({ user: currentUser, isAuthenticated }) => {
   const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [showPasswordReset, setShowPasswordReset] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [stats, setStats] = useState(null);
-  const [formData, setFormData] = useState({
-    username: '',
-    password: '',
-    fullName: '',
-    role: 'RECEPTIONIST',
-    email: '',
-    phone: '',
-    department: ''
-  });
+  const [formData, setFormData] = useState(getInitialUserFormData);
   const [passwordResetData, setPasswordResetData] = useState({
     newPassword: '',
     confirmPassword: ''
   });
+  const usernameInputRef = useRef(null);
 
   // Get all roles with their display info
   const roles = Object.values(UserRole).map(roleValue => {
@@ -44,9 +49,15 @@ const UserManagement = ({ user: currentUser, isAuthenticated }) => {
     loadInitialData();
   }, []);
 
+  useEffect(() => {
+    if (showAddForm && usernameInputRef.current) {
+      usernameInputRef.current.focus();
+    }
+  }, [showAddForm]);
+
   const loadInitialData = async () => {
     try {
-      setLoading(true);
+      setInitialLoading(true);
       await Promise.all([
         loadUsers(),
         loadStats()
@@ -54,7 +65,7 @@ const UserManagement = ({ user: currentUser, isAuthenticated }) => {
     } catch (err) {
       setError('Error loading data: ' + err.message);
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
     }
   };
 
@@ -90,6 +101,13 @@ const UserManagement = ({ user: currentUser, isAuthenticated }) => {
     loadUsers();
   };
 
+  const handleToggleAddForm = () => {
+    setError('');
+    setSuccessMessage('');
+    setFormData(getInitialUserFormData());
+    setShowAddForm(prev => !prev);
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -110,8 +128,9 @@ const UserManagement = ({ user: currentUser, isAuthenticated }) => {
     e.preventDefault();
     
     try {
-      setLoading(true);
+      setActionLoading('create');
       setError('');
+      setSuccessMessage('');
       
       const userData = {
         username: formData.username,
@@ -127,23 +146,16 @@ const UserManagement = ({ user: currentUser, isAuthenticated }) => {
       if (response) {
         console.log('User created:', response);
         setShowAddForm(false);
-        setFormData({
-          username: '',
-          password: '',
-          fullName: '',
-          role: 'RECEPTIONIST',
-          email: '',
-          phone: '',
-          department: ''
-        });
-        loadUsers();
-        loadStats();
+        setFormData(getInitialUserFormData());
+        await Promise.all([loadUsers(), loadStats()]);
+        setSuccessMessage('User created successfully');
+        setTimeout(() => setSuccessMessage(''), 3000);
       }
     } catch (err) {
       console.error('Create user error:', err);
       setError('Error creating user: ' + (err.response?.data?.message || err.message));
     } finally {
-      setLoading(false);
+      setActionLoading(null);
     }
   };
 
@@ -154,36 +166,36 @@ const UserManagement = ({ user: currentUser, isAuthenticated }) => {
     }
 
     try {
-      setLoading(true);
+      setActionLoading('passwordReset');
       setError('');
+      setSuccessMessage('');
       
       await userService.resetUserPassword(userId, passwordResetData.newPassword);
       setShowPasswordReset(null);
       setPasswordResetData({ newPassword: '', confirmPassword: '' });
-      setError('');
-      // Show success message
-      setTimeout(() => setError(''), 3000);
+      setSuccessMessage('Password reset successfully');
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
       console.error('Password reset error:', err);
       setError('Error resetting password: ' + (err.response?.data?.message || err.message));
     } finally {
-      setLoading(false);
+      setActionLoading(null);
     }
   };
 
   const handleToggleStatus = async (userId) => {
     try {
-      setLoading(true);
+      setActionLoading(`toggle:${userId}`);
       setError('');
+      setSuccessMessage('');
       
       await userService.toggleUserStatus(userId);
-      loadUsers();
-      loadStats();
+      await Promise.all([loadUsers(), loadStats()]);
     } catch (err) {
       console.error('Toggle status error:', err);
       setError('Error updating user status: ' + (err.response?.data?.message || err.message));
     } finally {
-      setLoading(false);
+      setActionLoading(null);
     }
   };
 
@@ -193,19 +205,20 @@ const UserManagement = ({ user: currentUser, isAuthenticated }) => {
     }
 
     try {
-      setLoading(true);
+      setActionLoading(`delete:${userId}`);
       setError('');
+      setSuccessMessage('');
       
       await userService.deleteUser(userId);
-      loadUsers();
-      loadStats();
-      setError('User deleted successfully');
-      setTimeout(() => setError(''), 3000);
+      await Promise.all([loadUsers(), loadStats()]);
+      setFormData(getInitialUserFormData());
+      setSuccessMessage('User deleted successfully');
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
       console.error('Delete user error:', err);
       setError('Error deleting user: ' + (err.response?.data?.message || err.message));
     } finally {
-      setLoading(false);
+      setActionLoading(null);
     }
   };
 
@@ -241,7 +254,7 @@ const UserManagement = ({ user: currentUser, isAuthenticated }) => {
     );
   };
 
-  if (loading && users.length === 0) {
+  if (initialLoading && users.length === 0) {
     return React.createElement(
       'div',
       { className: 'flex justify-center items-center h-64' },
@@ -276,7 +289,7 @@ const UserManagement = ({ user: currentUser, isAuthenticated }) => {
         canCreateUsers() && React.createElement(
           'button',
           {
-            onClick: () => setShowAddForm(!showAddForm),
+            onClick: handleToggleAddForm,
             style: {
               backgroundColor: '#0078D4',
               color: '#FFFFFF',
@@ -387,6 +400,7 @@ const UserManagement = ({ user: currentUser, isAuthenticated }) => {
               'Username *'
             ),
             React.createElement('input', {
+              ref: usernameInputRef,
               type: 'text',
               name: 'username',
               required: true,
@@ -535,7 +549,7 @@ const UserManagement = ({ user: currentUser, isAuthenticated }) => {
               'button',
               {
                 type: 'submit',
-                disabled: loading,
+                disabled: actionLoading === 'create',
                 style: {
                   backgroundColor: '#16A34A',
                   color: '#FFFFFF',
@@ -545,10 +559,10 @@ const UserManagement = ({ user: currentUser, isAuthenticated }) => {
                   cursor: 'pointer',
                   fontSize: '14px',
                   fontWeight: '500',
-                  opacity: loading ? 0.6 : 1
+                  opacity: actionLoading === 'create' ? 0.6 : 1
                 }
               },
-              loading ? 'Creating...' : 'Create User'
+              actionLoading === 'create' ? 'Creating...' : 'Create User'
             )
           )
         )
@@ -637,6 +651,13 @@ const UserManagement = ({ user: currentUser, isAuthenticated }) => {
         error
       ),
 
+      // Success Display
+      successMessage && React.createElement(
+        'div',
+        { style: { backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', color: '#166534', padding: '12px', margin: '16px 24px', fontSize: '14px' } },
+        successMessage
+      ),
+
       // Users Table
       React.createElement(
         'div',
@@ -666,7 +687,7 @@ const UserManagement = ({ user: currentUser, isAuthenticated }) => {
               React.createElement(
                 'td',
                 { colSpan: 5, style: { padding: '40px', textAlign: 'center', color: '#6B7280', fontSize: '14px' } },
-                loading ? 'Loading...' : 'No users found. Click "Add User" to create your first user.'
+                initialLoading ? 'Loading...' : 'No users found. Click "Add User" to create your first user.'
               )
             ) : users.map((user, index) => {
               const roleInfo = getRoleInfo(user.role);
