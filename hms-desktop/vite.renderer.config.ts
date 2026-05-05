@@ -12,12 +12,5 @@ export default defineConfig(async () => {
         '@': '/src'
       }
     },
-    build: {
-      rollupOptions: {
-        input: {
-          main_window: "src/renderer.tsx",
-        },
-      },
-    },
   };
 });

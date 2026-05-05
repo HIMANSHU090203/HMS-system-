@@ -16,6 +16,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// API responses are dynamic and consumed by Electron; avoid stale 304 responses
+// hiding fresh database-backed catalog/config data.
+app.set('etag', false);
+
 // Initialize Prisma Client
 const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
@@ -50,6 +54,13 @@ app.use(generalLimiter);
 
 // Apply input sanitization to all routes
 app.use(sanitizeInput);
+
+app.use('/api', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));

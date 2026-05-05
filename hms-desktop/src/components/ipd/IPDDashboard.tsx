@@ -4,6 +4,7 @@ import bedService from '../../lib/api/services/bedService';
 import admissionService from '../../lib/api/services/admissionService';
 import { hasIPDSubModuleAccess } from '../../lib/utils/rolePermissions';
 import { UserRole } from '../../types';
+import { config } from '../../config/environment';
 
 const IPDDashboard = ({ onBack, isAuthenticated, user }) => {
   const [loading, setLoading] = useState(false);
@@ -158,7 +159,7 @@ const IPDDashboard = ({ onBack, isAuthenticated, user }) => {
       else if (err.code === 'ERR_NETWORK' || err.code === 'ECONNREFUSED' || !err.response) {
         // Verify backend is actually running
         try {
-          const healthCheck = await fetch('http://localhost:3000/health');
+          const healthCheck = await fetch(`${config.API_URL.replace('/api', '')}/health`);
           if (healthCheck.ok) {
             setError('❌ Backend is running but API calls are failing. Check authentication token or user permissions.');
           } else {

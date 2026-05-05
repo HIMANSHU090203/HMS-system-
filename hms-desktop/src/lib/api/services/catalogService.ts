@@ -65,9 +65,18 @@ export interface PatientChronicCondition {
 }
 
 class CatalogService {
+  private noCacheParams(params: Record<string, any> = {}) {
+    return {
+      ...params,
+      _ts: Date.now(),
+    };
+  }
+
   // ========== ALLERGY CATALOG ==========
   async getAllAllergies(): Promise<{ allergies: Allergy[] }> {
-    const response = await apiClient.get<ApiResponse<{ allergies: Allergy[] }>>('/catalog/allergies');
+    const response = await apiClient.get<ApiResponse<{ allergies: Allergy[] }>>('/catalog/allergies', {
+      params: this.noCacheParams(),
+    });
     return response.data.data;
   }
 
@@ -78,7 +87,9 @@ class CatalogService {
 
   // ========== CHRONIC CONDITION CATALOG ==========
   async getAllChronicConditions(): Promise<{ conditions: ChronicCondition[] }> {
-    const response = await apiClient.get<ApiResponse<{ conditions: ChronicCondition[] }>>('/catalog/chronic-conditions');
+    const response = await apiClient.get<ApiResponse<{ conditions: ChronicCondition[] }>>('/catalog/chronic-conditions', {
+      params: this.noCacheParams(),
+    });
     return response.data.data;
   }
 
@@ -90,7 +101,7 @@ class CatalogService {
   // ========== DIAGNOSIS CATALOG ==========
   async getAllDiagnoses(category?: string): Promise<{ diagnoses: Diagnosis[] }> {
     const params = category ? { category } : {};
-    const response = await apiClient.get<ApiResponse<{ diagnoses: Diagnosis[] }>>('/catalog/diagnoses', { params });
+    const response = await apiClient.get<ApiResponse<{ diagnoses: Diagnosis[] }>>('/catalog/diagnoses', { params: this.noCacheParams(params) });
     return response.data.data;
   }
 
@@ -105,7 +116,7 @@ class CatalogService {
     if (category) params.category = category;
     if (lowStock !== undefined) params.lowStock = lowStock.toString();
     
-    const response = await apiClient.get<ApiResponse<{ medicines: Medicine[] }>>('/catalog/medicines', { params });
+    const response = await apiClient.get<ApiResponse<{ medicines: Medicine[] }>>('/catalog/medicines', { params: this.noCacheParams(params) });
     return response.data.data;
   }
 
@@ -121,7 +132,9 @@ class CatalogService {
 
   // ========== PATIENT ALLERGIES ==========
   async getPatientAllergies(patientId: string): Promise<{ allergies: PatientAllergy[] }> {
-    const response = await apiClient.get<ApiResponse<{ allergies: PatientAllergy[] }>>(`/catalog/patients/${patientId}/allergies`);
+    const response = await apiClient.get<ApiResponse<{ allergies: PatientAllergy[] }>>(`/catalog/patients/${patientId}/allergies`, {
+      params: this.noCacheParams(),
+    });
     return response.data.data;
   }
 
@@ -136,7 +149,9 @@ class CatalogService {
 
   // ========== PATIENT CHRONIC CONDITIONS ==========
   async getPatientChronicConditions(patientId: string): Promise<{ conditions: PatientChronicCondition[] }> {
-    const response = await apiClient.get<ApiResponse<{ conditions: PatientChronicCondition[] }>>(`/catalog/patients/${patientId}/chronic-conditions`);
+    const response = await apiClient.get<ApiResponse<{ conditions: PatientChronicCondition[] }>>(`/catalog/patients/${patientId}/chronic-conditions`, {
+      params: this.noCacheParams(),
+    });
     return response.data.data;
   }
 

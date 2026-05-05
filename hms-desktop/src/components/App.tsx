@@ -461,7 +461,7 @@ const App: React.FC = () => {
               style: { fontFamily: 'monospace', fontSize: '12px' }
             },
             React.createElement('p', { className: 'font-semibold mb-2' }, 'API URL:', React.createElement('span', { className: 'text-blue-600' }, config.API_URL)),
-            React.createElement('p', { className: 'text-gray-600' }, 'Expected backend: http://localhost:3000')
+            React.createElement('p', { className: 'text-gray-600' }, 'Expected backend:', React.createElement('span', { className: 'text-blue-600 ml-1' }, config.API_URL.replace('/api', '')))
           )
         ),
         React.createElement(
@@ -470,7 +470,7 @@ const App: React.FC = () => {
           React.createElement(
             'h2',
             { className: 'text-xl font-semibold text-blue-800 mb-4' },
-            'How to Start the Backend Server:'
+            'Backend Connection Details:'
           ),
           React.createElement(
             'ol',
@@ -481,37 +481,37 @@ const App: React.FC = () => {
               React.createElement(
                 'span',
                 { className: 'font-semibold' },
-                'Open a new terminal/command prompt'
+                'Confirm the configured backend API is reachable'
               )
             ),
             React.createElement(
               'li',
               null,
-              'Navigate to the backend directory:',
+              'Backend base URL:',
               React.createElement(
                 'code',
                 { className: 'block mt-2 bg-gray-100 p-2 rounded font-mono text-sm' },
-                'cd hms-desktop/backend'
+                config.API_URL.replace('/api', '')
               )
             ),
             React.createElement(
               'li',
               null,
-              'Start the backend server:',
+              'Health endpoint:',
               React.createElement(
                 'code',
                 { className: 'block mt-2 bg-gray-100 p-2 rounded font-mono text-sm' },
-                'npm run dev'
+                `${config.API_URL.replace('/api', '')}/health`
               )
             ),
             React.createElement(
               'li',
               null,
-              'Wait for the message: ',
+              'If this points to the wrong host, rebuild the installer with ',
               React.createElement(
                 'code',
                 { className: 'bg-green-100 px-2 py-1 rounded text-sm' },
-                '🚀 ZenHosp Backend Server running on port 3000'
+                'VITE_API_URL'
               )
             ),
             React.createElement(
